@@ -4,13 +4,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-07-18",
 
-  // M1.2: session KV. M1.8 replaces "local-dev-placeholder" with the real
-  // namespace id from `wrangler kv namespace create SESSIONS`.
+  // M1.2: session KV (namespace created 2026-07-18, account 9ed31ff1…).
   "kv_namespaces": [
     {
       "binding": "SESSIONS",
-      "id": "local-dev-placeholder",
-      "preview_id": "local-dev-placeholder"
+      "id": "a75f52d876e74c1aa11161a865b4c47d",
+      "preview_id": "a75f52d876e74c1aa11161a865b4c47d"
     }
   ],
 

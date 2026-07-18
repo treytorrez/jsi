@@ -17,9 +17,9 @@ import (
 	"strings"
 )
 
-// DefaultServerURL is the hosted SP/1 worker. Placeholder: the finalized
+// DefaultServerURL is the hosted SP/1 worker (deployed 2026-07-18,
 // URL is set at M1.8 deploy (PLAN.md §7.1, proto/SIGNALING.md §Base URL).
-const DefaultServerURL = "https://jsi-signal.treyt.workers.dev"
+const DefaultServerURL = "https://jsi-signal.treytorrez.workers.dev"
 
 // Main is the program entry: SIGINT cancels the run's context (an in-flight
 // transfer then sends a TP/1 cancel, M3.4) and the result maps to an exit
