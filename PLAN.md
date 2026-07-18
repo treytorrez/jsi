@@ -1,7 +1,10 @@
 # JSI — Master Plan & Spec
 
 **Just Send It** — serverless-first, P2P, private file transfer.
-Version: spec v0.3 · Status: approved-for-implementation · Source: `proj-proposal.docx` v0.2
+Version: spec v0.4 · Status: approved-for-implementation · Source: `proj-proposal.docx` v0.2
+
+> v0.4: adds D15 — user-controlled external-services policy (signaling × transport
+> axes; default = no external infrastructure except STUN).
 
 This document is the single source of truth for architecture, component boundaries,
 milestones, and task decomposition. Wire formats live in `proto/`. Working agreements
@@ -118,6 +121,7 @@ pkg.go.dev, BC-UR papers. Full citations were gathered during planning; key ones
 | D12 | M4 QR = **multi-frame animated by default** + copy-paste base64 fallback channel; camera scanning in the Go CLI via `pion/mediadevices` + `gozxing` is a **spike first** (cgo/platform risk). | QR density math (§2) makes single-frame infeasible; paste fallback guarantees M4 works even if camera deps fail. |
 | D13 | Polling (not WebSocket/Durable Objects) for the answer. 1 s interval, client-side. | Keeps the worker stateless and free-tier; DOs/WebSockets are a documented future optimization (long-poll variant noted in SP/1). |
 | D14 | mDNS host candidates enabled in Go clients (`SettingEngine.SetICEMulticastDNSMode`). | Privacy parity with browsers — hides LAN IPs from the remote peer's view of SDP. |
+| D15 | **External-services policy is user-controlled, default `none`.** Two orthogonal axes — signaling × transport — three presets plus per-axis overrides (C1-style mixing). `none`: QR signaling + host/STUN only, zero CF contact. `fallback`: QR first, escalate to worker on failure + TURN allowed (ICE-native last resort). `full`: worker signaling + TURN allowed (C2). Clients MUST display the established path (direct / STUN-assisted / TURN-relayed) and MUST announce any escalation to externals before using it. | User mandate: no accidental data through servers. STUN is the only always-permitted external (stateless, sees IPs only, never content). In `fallback`, `/v1/ice` is fetched upfront (anonymous, session-less) because adding TURN after a failed attempt would require a fresh QR scan cycle (ICE restart → new SDP exchange). |
 
 Open question parked for M6: **license choice** (proposal says "open source from day
 one"; default candidate MIT — note Yggdrasil stretch introduces LGPLv3+exception
@@ -150,6 +154,29 @@ code, which is compatible but must be attributed).
 
  M4 alternate path: signal client ⇄ QR frames / paste blob (no worker at all)
 ```
+
+### Connection policy (D15 — user-controlled)
+
+Signaling and transport are **orthogonal axes**. Presets (default **`none`**) or
+per-axis overrides (`--signal`, `--relay/--no-relay`) — the C1/C2 mixing modes:
+
+| Preset | Signaling | Transport | External contact |
+|---|---|---|---|
+| `none` (default) | QR / paste | host + STUN | STUN only |
+| `fallback` | QR → worker on failure | host + STUN + TURN (relay = last resort) | anonymous `/v1/ice` upfront; worker only if QR fails |
+| `full` (C2) | CF worker | host + STUN + TURN | worker session (≤90 s) |
+| C1 mixed | explicit `--signal` | explicit `--relay`/`--no-relay` | per choice |
+
+Transparency rules (normative): clients MUST show which path was established
+(direct / STUN-assisted / TURN-relayed) and MUST announce any escalation to
+externals before using it.
+
+> **Is STUN necessary?** Same LAN: no (host/mDNS candidates suffice). Across the
+> internet: practically yes — without it a peer can't learn its public IP:port and
+> hole-punching can't be attempted (exceptions: global IPv6 both ends, or one side
+> publicly reachable). STUN is stateless, carries no content, sees only IPs — the
+> most benign external in the design. (Parked alternative: NAT-PMP/PCP/UPnP
+> router mappings, torrent-client style.)
 
 ---
 
@@ -219,8 +246,9 @@ Payload = zlib-compressed JSEP JSON → split into indexed frames:
 `JSI1 <seq>/<total> <crc32(payload)> <chunk>`. Rendered as animated QR loop
 (~400 B/frame default, EC level M) or emitted as a single base64url blob for
 copy-paste. Handshake is two-phase and reverses direction: sender's offer frames →
-receiver scans; receiver's answer frames → sender scans. ICE servers = host
-candidates only by default (LAN scenario); `--stun` flag when online.
+receiver scans; receiver's answer frames → sender scans. ICE servers follow the
+D15 policy: preset `none` = host + STUN (zero CF contact); `fallback` adds TURN
+via an anonymous `/v1/ice` call.
 
 ---
 
@@ -286,8 +314,11 @@ Pure TP/1 state machines; UI-agnostic (events feed CLI bars and TUI bubbles alik
 - `jsi send <file...>` → ICE servers → offer → token + terminal QR of
   `https://<pwa-host>/#t=<token>` + wait → transfer → summary.
 - `jsi receive <token> [-o dir]` → mirror flow.
-- Flags: `--server` (default hosted worker URL), `--signal worker|qr` (M4),
-  `--stun` (QR mode), `-v`.
+- Flags (D15): `--externals none|fallback|full` (default `none`),
+  `--signal qr|worker` and `--relay/--no-relay` (per-axis C1 overrides),
+  `--server` (worker URL override), `-v`.
+  M3 note: QR signaling lands in M4, so M3-era builds behave as preset `full`;
+  the full flag surface ships with M4.
 - Progress: `schollz/progressbar/v3` (only UI dep). Exit codes: 0 ok, 1 generic,
   2 signaling timeout, 3 peer rejected, 4 integrity failure.
 
@@ -357,7 +388,7 @@ gathering`). `∥` = parallelizable with siblings after deps met. Every task's
 | M4.3 | Terminal animated-QR renderer (frame loop, adjustable fps/size) | M4.2 | scans reliably with a phone camera |
 | M4.4 | **SPIKE** `spike/qr-camera`: webcam capture (`pion/mediadevices`) + decode (`gozxing`) | M4.2 | go/no-go committed; fallback = paste-only |
 | M4.5 | `signal.QR` implements `Channel`; CLI `--signal qr` both roles | M4.3, M4.4 (or paste fallback) | CLI↔CLI transfer with **network namespace isolation proving no CF traffic** |
-| M4.6 | CF-fallback UX: offer QR first, suggest `--signal worker` on scan timeout | M4.5 | documented flow |
+| M4.6 | D15 policy wiring: `--externals` presets + per-axis overrides; `fallback` escalation to worker with explicit user notice; anonymous `/v1/ice` upfront fetch | M4.5 | zero CF contact provable in `none`; escalation notice shown in `fallback` |
 
 ### M5 — TUI ✦ *full interactive send/receive flow*
 
@@ -415,6 +446,12 @@ gathering`). `∥` = parallelizable with siblings after deps met. Every task's
 - TURN creds are per-request, TTL 3600 s, revocable via CF API; API token lives
   only in worker secrets.
 - mDNS host candidates hide LAN IPs (D14).
+- **External contact is opt-in (D15).** Default preset `none` touches only STUN
+  (stateless; sees IPs, never content). TURN is reachable only in
+  `fallback`/`full` and carries DTLS ciphertext. The established path is always
+  displayed to the user.
+- Future consideration: forced-relay mode (`iceTransportPolicy: "relay"`) to hide
+  client IPs from the *peer* as well — not in v1.
 
 ## 11. Risks & mitigations
 

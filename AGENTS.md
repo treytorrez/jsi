@@ -11,8 +11,9 @@ wrong or incomplete, fix the spec file in the same commit and say so in the mess
 
 ## Status
 
-Planning complete (spec v0.3). Implementation not yet started. Next up: M1
-(worker), M2 (Go core). Update this section as milestones land.
+Planning complete (spec v0.4 — note D15 external-services policy, default
+no-external). Implementation not yet started. Next up: M1 (worker), M2 (Go
+core). Update this section as milestones land.
 
 ## Layout
 

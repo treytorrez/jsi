@@ -101,13 +101,14 @@ All errors: `{"error": {"code": "<code>", "message": "<human readable>"}}`.
 
 # QP/1 — QR / Offline Signaling Protocol
 
-Version: QP/1 · Status: normative for M4 · Governing decisions: D2, D12
+Version: QP/1 · Status: normative for M4 · Governing decisions: D2, D12, D15
 
 Same handshake as SP/1 (one offer SDP, one answer SDP, non-trickle), transported
 over animated QR frames or a copy-paste blob instead of HTTP. Both sides need a
-display and a way to read the peer's payload (camera **or** paste). Default ICE
-servers: **none** (host candidates only — LAN scenario); optional `--stun` adds
-STUN when both parties are online but worker-less.
+display and a way to read the peer's payload (camera **or** paste). ICE servers
+follow policy D15: preset `none` (default) = host + STUN only, **zero CF contact**
+(fully-offline contexts degrade to host candidates automatically); preset
+`fallback` adds TURN from an anonymous `GET /v1/ice` — no session is created.
 
 ## Payload
 
@@ -153,5 +154,6 @@ Sender                              Receiver
   │  WebRTC connect (host candidates) │
 ```
 
-Scan timeout: 120 s per direction, then suggest `--signal worker` (CF fallback,
-per proposal M4 "falling back to CF only when needed").
+Scan timeout: 120 s per direction. Preset `none`: fail with instructions.
+Preset `fallback`: announce the escalation to the user, then continue via SP/1
+worker signaling (proposal M4: "falling back to CF only when needed").
