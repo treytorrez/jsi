@@ -1,0 +1,10 @@
+{
+  // JSI signaling worker — SP/1 (proto/SIGNALING.md). Keep src/ ~200 lines.
+  "name": "jsi-signal",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-18"
+
+  // M1.2 adds: kv_namespaces [SESSIONS]
+  // M1.3 adds: vars.TURN_KEY_ID + secret TURN_API_TOKEN
+  // M1.6 adds: ratelimits [POST_LIMITER]
+}
