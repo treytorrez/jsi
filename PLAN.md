@@ -308,8 +308,14 @@ seam is also where Yggdrasil signaling (S1) plugs in. Worker impl requires
 
 ```go
 type Event struct { Kind EventKind; FileID int; BytesDone, BytesTotal int64; Err error }
-func Send(ctx context.Context, dc *webrtc.DataChannel, files []File, ev chan<- Event) error
-func Receive(ctx context.Context, dc *webrtc.DataChannel, destDir string, ev chan<- Event) error
+// Endpoint abstracts the peer connection (satisfied by *peer.Conn): control
+// messages ride Channel(); file chunks go through WriteFlow (D9 watermarks).
+type Endpoint interface {
+    Channel() *webrtc.DataChannel
+    WriteFlow(ctx context.Context, data []byte) error
+}
+func Send(ctx context.Context, ep Endpoint, files []File, ev chan<- Event) error
+func Receive(ctx context.Context, ep Endpoint, destDir string, ev chan<- Event) error
 ```
 
 Pure TP/1 state machines; UI-agnostic (events feed CLI bars and TUI bubbles alike).
@@ -320,8 +326,9 @@ Pure TP/1 state machines; UI-agnostic (events feed CLI bars and TUI bubbles alik
   `https://<pwa-host>/#t=<token>` + wait → transfer → summary.
 - `jsi receive <token> [-o dir]` → mirror flow.
 - Flags (D15): `--externals none|fallback|full` (default `none`),
-  `--signal qr|worker` and `--relay/--no-relay` (per-axis C1 overrides),
-  `--server` (worker URL override), `-v`.
+  `--signal paste|worker` (`qr` added in M4) and `--relay/--no-relay` (per-axis
+  C1 overrides), `--server` (worker URL override), `--pwa-url` (base URL for the
+  send-side QR; default TBD at S4 — bare token payload until then), `-o dir`, `-v`.
   Default `none` works from M3 onward via the paste channel (M3.6): out-of-band
   blob exchange, zero CF contact.
 - Progress: `schollz/progressbar/v3` (only UI dep). Exit codes: 0 ok, 1 generic,

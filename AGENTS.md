@@ -11,10 +11,10 @@ wrong or incomplete, fix the spec file in the same commit and say so in the mess
 
 ## Status
 
-Planning complete (spec v0.5 — D15 external-services policy, default
-no-external; the paste channel in M3 makes `none` work from the first CLI).
-Implementation not yet started. Next up: M1 (worker), M2 (Go core). Update this
-section as milestones land.
+Spec v0.5. Landed: M1.1–M1.7 (worker SP/1 complete, 24 tests green — only M1.8
+deploy remains, needs the user's CF auth); M2.1–M2.7 (Go core: token, protocol,
+peer, signal worker+paste, transfer + loopback integration). In flight: M2.8,
+M3 (CLI). Update this section as milestones land.
 
 ## Layout
 
