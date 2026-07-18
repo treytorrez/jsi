@@ -328,7 +328,9 @@ Pure TP/1 state machines; UI-agnostic (events feed CLI bars and TUI bubbles alik
 - Flags (D15): `--externals none|fallback|full` (default `none`),
   `--signal paste|worker` (`qr` added in M4) and `--relay/--no-relay` (per-axis
   C1 overrides), `--server` (worker URL override), `--pwa-url` (base URL for the
-  send-side QR; default TBD at S4 — bare token payload until then), `-o dir`, `-v`.
+  send-side QR; default TBD at S4 — bare token payload until then),
+  `--no-stun` (host candidates only — true zero-contact), `--no-mdns` (broken-
+  multicast escape hatch), `-o dir`, `-y`, `-v`.
   Default `none` works from M3 onward via the paste channel (M3.6): out-of-band
   blob exchange, zero CF contact.
 - Progress: `schollz/progressbar/v3` (only UI dep). Exit codes: 0 ok, 1 generic,
@@ -391,7 +393,7 @@ gathering`). `∥` = parallelizable with siblings after deps met. Every task's
 | M3.4 | Error paths: timeout (exit 2), reject (3), hash fail (4), SIGINT cancel | M3.3 | each path exercised in test |
 | M3.5 | e2e: two CLIs over deployed dev worker transfer 100 MiB, sha256 compare | M1.8, M3.3 | `scripts/e2e-cli.sh` green |
 | M3.6 | QP/1 payload codec (zlib, CRC-32, base64url) + `signal.Paste` + CLI wiring; default preset `none` goes live | M2.5, M3.2 | offline paste transfer between two terminals; `jsi send` with no flags never contacts CF |
-| M3.7 | e2e paste: blobs piped between two CLIs, network-isolation assertion (no CF traffic) | M3.6 | `scripts/e2e-paste.sh` green |
+| M3.7 | e2e paste: blobs piped between two CLIs, network-isolation assertion (no CF traffic) | M3.6 | `scripts/e2e-paste.sh` green — strace-proven: every sendto/connect destination is local (unshare-netns abandoned: Pion rightly omits loopback host candidates) |
 
 ### M4 — Serverless contact (QR signaling) ✦ *SDP+ICE over QR, CF only as fallback*
 

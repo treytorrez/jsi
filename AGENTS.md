@@ -11,10 +11,12 @@ wrong or incomplete, fix the spec file in the same commit and say so in the mess
 
 ## Status
 
-Spec v0.5. Landed: M1.1–M1.7 (worker SP/1 complete, 24 tests green — only M1.8
-deploy remains, needs the user's CF auth); M2.1–M2.7 (Go core: token, protocol,
-peer, signal worker+paste, transfer + loopback integration). In flight: M2.8,
-M3 (CLI). Update this section as milestones land.
+Spec v0.5. Landed: M1.1–M1.7 (worker SP/1, 24 tests green — only M1.8 deploy
+remains, needs the user's CF auth); M2.1–M2.8 (**tag `m2`** — Go core: token,
+protocol, peer, signal worker+paste, transfer, loopback + live-worker e2e);
+M3.1–M3.7 (CLI: D15 policy engine, paste+worker flows, QR token, progress,
+exit codes, strace-proven zero-contact e2e). Next: M4 (QR signaling) or M1.8.
+Update this section as milestones land.
 
 ## Layout
 
