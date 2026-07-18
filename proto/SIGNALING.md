@@ -129,7 +129,8 @@ offset  field
 12      chunk             N B  payload[(seq-1)*chunkSize : seq*chunkSize]
 ```
 
-- Default `chunkSize` = **400 B** (final value set by spike M4.1 measurement).
+- Default `chunkSize` = **400 B** (confirmed by spike M4.1 measurement — see
+  Appendix A below).
 - Frames render as a looping animation at ~2 fps (adjustable), quiet zone ≥ 2
   modules, terminal half-block rendering (`mdp/qrterminal/v3`).
 - Decoder: collect frames until all `total` seen (any loop pass), order by `seq`,
@@ -158,3 +159,93 @@ Sender                              Receiver
 Scan timeout: 120 s per direction. Preset `none`: fail with instructions.
 Preset `fallback`: announce the escalation to the user, then continue via SP/1
 worker signaling (proposal M4: "falling back to CF only when needed").
+
+---
+
+## QP/1 Appendix A — measured SDP sizes (spike M4.1, 2026-07)
+
+Method: `cmd/qrsize` (branch `spike/qr-size`) generated **5 real non-trickle
+offer+answer pairs per configuration** with `internal/peer` (pion/webrtc
+v4.2.17, go1.26.4) and pushed each SDP through the §Payload pipeline
+(JSEP JSON → zlib default level → base64url). Machine: Linux dev box with
+internet access (STUN reachable, mDNS active). Cells are medians with
+min–max in parens; variance was negligible.
+
+Configurations:
+
+- **A** — host only, mDNS off
+- **B** — host only, mDNS on (D14 production default)
+- **C** — host + 2 STUN (`stun.cloudflare.com:3478`, `stun.l.google.com:19302`), mDNS on — the D15 `none` preset
+- **D** — C + mocked 6-URL TURN block with 128-hex creds (simulated `full`; fake creds → no relay candidates)
+- **E** — C with `a=extmap`/`a=msid`/`a=ssrc` lines stripped before compression (munge reference only; v1 forbids munging on the wire)
+
+### Pipeline sizes (offer side)
+
+| cfg | cands h/s/r (mDNS) | raw SDP B | raw JSEP B | zlib B | ratio | b64url B | answer zlib B |
+|---|---|---|---|---|---|---|---|
+| A | 16/0/0 (0) | 1998 | 2091 | 665 (660–671) | 3.14x (3.12–3.17) | 887 (880–895) | 665 (657–671) |
+| B | 26/0/0 (26) | 3672 (3662–3672) | 3785 (3775–3785) | 623 (620–628) | 6.08x (6.03–6.10) | 831 (827–838) | 617 (614–622) |
+| C | 26/8/0 (26) | 4626 (4610–4628) | 4755 (4739–4757) | 755 (749–761) | 6.28x (6.25–6.33) | 1007 (999–1015) | 749 (744–760) |
+| D | 26/16/0 (26) | 5570 (5562–5582) | 5715 (5707–5727) | 815 (808–830) | 7.00x (6.90–7.09) | 1087 (1078–1107) | 817 (808–822) |
+| E | 26/8/0 (26) | 4579 (4565–4581) | 4704 (4690–4706) | 722 (716–728) | 6.52x (6.46–6.55) | 963 (955–971) | 719 (718–726) |
+
+### Frame counts vs chunk size (worst of offer/answer per pair)
+
+| cfg | worst-dir zlib B (max) | frames @300 B | frames @400 B | frames @500 B | frames @700 B |
+|---|---|---|---|---|---|
+| A | 671 | 3 | 2 | 2 | 1 |
+| B | 628 | 3 | 2 | 2 | 1 |
+| C | 761 | 3 | 2 | 2 | 2 |
+| D | 830 | 3 | 3 | 2 | 2 |
+| E | 728 | 3 | 2 | 2 | 2 |
+
+### Chunk size → minimal QR version (byte mode, EC level M, rsc.io/qr encoder)
+
+| chunk B | frame B (+12 B header) | minimal QR version |
+|---|---|---|
+| 300 | 312 | V13-M |
+| 400 | 412 | V15-M (exactly at its 412 B capacity) |
+| 500 | 512 | V18-M |
+| 700 | 712 | V22-M |
+
+### Findings
+
+- **Deflate beats the PLAN.md §2 estimate**: measured 3.1x–7.0x vs the
+  guessed 3:1–5:1; fatter SDPs compress *better* (candidate lines are
+  near-identical). Raw Go datachannel SDPs here (2.0–5.7 KB) exceed the
+  §2 "1.5–3 KB typical" assumption, yet every deflated payload is ≤830 B.
+- **STUN is nearly free after deflate**: A→C adds 18 candidate lines
+  (+2.6 KB raw) for only +90 B deflated.
+- **mDNS deflates *smaller* than plain host candidates** (B 623 B < A
+  665 B) despite 10 more candidate lines: one repeated UUID `.local`
+  name compresses better than varied IP literals. D14 costs nothing.
+- **Adding TURN URLs doubled srflx lines** (C 8 → D 16): the TURN UDP
+  endpoints also answer STUN bindings from the same sockets. Mock TURN
+  adds **no** relay lines (fake creds); production `full` adds roughly
+  +100 B deflated of `typ relay` lines on top of D — still 3 frames @400 B.
+- **Munging is not worth it**: E strips the only two strippable lines in a
+  datachannel SDP (`a=msid-semantic`, `a=extmap-allow-mixed` — there are
+  no `a=ssrc`/`a=msid` media lines) and saves 33 B deflated (4.4%). The
+  v1 no-munge decision leaves essentially nothing on the table.
+- Answers measure within ±10 B of offers; direction does not matter.
+- Caveats: measured on a multi-interface box (8 IPs, 13 mDNS names —
+  docker/tailscale); typical laptops gather fewer candidates → smaller
+  SDPs. Pion emits component-1 **and** component-2 lines per candidate
+  (no rtcp-mux), so browser-side SDPs will be smaller; Go↔Go is the fat
+  case and it is what M4 ships first.
+
+### Recommendation (adopted in §QR frames above)
+
+**Default `chunkSize` = 400 B, EC level M.** At 400 B every default-path
+config (A/B/C, the D15 `none` preset) is **2 frames** and the worst case —
+config D — is **3 frames** (830 B max → 1.5 s/loop at 2 fps). A 400 B
+frame is 412 B on the wire, exactly filling V15-M — a size terminals and
+phones scan comfortably. Larger chunks don't pay: 500 B only helps the
+non-default `full` preset (D: 3→2 frames) while making *every* frame a
+denser V18-M; 700 B needs V22-M — past the ≤V20 comfort ceiling — and its
+single-frame win applies only to host-only configs. 300 B is strictly
+worse than 400 here (C: 3 vs 2 frames). Staying at EC M (not L) costs one
+version step (V15 vs V14 at 400 B) with zero frame-count change, and the
+15% correction margin earns it back against screen glare and motion blur
+in an animated loop. Worst case for config D at the recommended size:
+**3 frames**, with headroom to ~1.2 KB deflated before a 4th frame appears.

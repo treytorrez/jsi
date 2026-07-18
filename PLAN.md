@@ -88,7 +88,9 @@ pkg.go.dev, BC-UR papers. Full citations were gathered during planning; key ones
 - Precedent: Blockchain Commons **UR/MUR** — indexed frames with a whole-message
   CRC-32; optional Luby-transform fountain frames for loss tolerance. QP/1 (§6.3)
   adopts the fixed-rate degenerate case; fountain frames are a documented upgrade.
-- Deflate on SDP: estimated 3:1–5:1 (unverified — **spike S-M4.1 measures this**).
+- Deflate on SDP: **measured 3.1x–7.0x (spike M4.1)** — fatter SDPs compress
+  better; worst config deflates to ≤830 B → 2–3 frames at 400 B chunks.
+  See QP/1 Appendix A in `proto/SIGNALING.md`.
 - Go QR: `mdp/qrterminal/v3` (maintained, half-block terminal renderer).
   `skip2/go-qrcode` is unmaintained since 2020 — avoid.
 
