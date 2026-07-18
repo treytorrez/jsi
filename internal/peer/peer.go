@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
@@ -41,7 +42,20 @@ type Config struct {
 	// (or set the field true) for browser parity — mDNS hides LAN IPs from
 	// the SDP a remote peer sees.
 	EnableMDNS bool
+
+	// GatherTimeout bounds how long Offer/Answer wait for ICE gathering to
+	// complete before shipping the partially-gathered SDP (host candidates
+	// at minimum). Zero means the default of 3 s; negative waits forever.
+	// Rationale: non-trickle SDP must wait for gathering (D2), but an
+	// unreachable STUN server (offline LAN, captive portal, network
+	// namespace) would otherwise stall the handshake for tens of seconds.
+	// 3 s is generous for a healthy STUN round trip (~ms) and bounds the
+	// offline degradation to something a human barely notices.
+	GatherTimeout time.Duration
 }
+
+// DefaultGatherTimeout is the default bound on the ICE gathering wait.
+const DefaultGatherTimeout = 3 * time.Second
 
 // DefaultConfig returns the production default: mDNS enabled per D14, no
 // ICE servers (the caller adds STUN/TURN per the D15 externals policy).
@@ -124,12 +138,27 @@ func newPeerConnection(cfg Config) (*webrtc.PeerConnection, error) {
 	return pc, nil
 }
 
-// waitGather blocks until ICE gathering completes (D2 non-trickle) or ctx
-// is done.
-func waitGather(ctx context.Context, gather <-chan struct{}) error {
+// waitGather blocks until ICE gathering completes (D2 non-trickle), the
+// gather timeout fires (ship the partial SDP), or ctx is done.
+func waitGather(ctx context.Context, gather <-chan struct{}, timeout time.Duration) error {
+	if timeout == 0 {
+		timeout = DefaultGatherTimeout
+	}
+	if timeout < 0 {
+		select {
+		case <-gather:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	t := time.NewTimer(timeout)
+	defer t.Stop()
 	select {
 	case <-gather:
 		return nil
+	case <-t.C:
+		return nil // partial SDP: candidates gathered so far (host at minimum)
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -179,7 +208,7 @@ func Offer(ctx context.Context, cfg Config) (*Conn, webrtc.SessionDescription, e
 	if err := pc.SetLocalDescription(offer); err != nil {
 		return fail(fmt.Errorf("peer: set local description: %w", err))
 	}
-	if err := waitGather(ctx, gather); err != nil {
+	if err := waitGather(ctx, gather, cfg.GatherTimeout); err != nil {
 		return fail(err)
 	}
 
@@ -221,7 +250,7 @@ func Answer(ctx context.Context, cfg Config, offer webrtc.SessionDescription) (*
 	if err := pc.SetLocalDescription(answer); err != nil {
 		return fail(fmt.Errorf("peer: set local description: %w", err))
 	}
-	if err := waitGather(ctx, gather); err != nil {
+	if err := waitGather(ctx, gather, cfg.GatherTimeout); err != nil {
 		return fail(err)
 	}
 

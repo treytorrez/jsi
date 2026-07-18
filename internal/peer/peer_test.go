@@ -287,3 +287,31 @@ func TestOnMessageReplaysBuffered(t *testing.T) {
 		t.Fatal("early message dropped instead of replayed")
 	}
 }
+
+// TestGatherTimeoutPartialSDP verifies that an unreachable STUN server does
+// not stall the handshake: Offer returns after ~GatherTimeout with a
+// partially-gathered SDP that still carries host candidates.
+func TestGatherTimeoutPartialSDP(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	cfg := peer.Config{
+		ICEServers:    []webrtc.ICEServer{{URLs: []string{"stun:192.0.2.1:3478"}}}, // TEST-NET-1: blackholed
+		GatherTimeout: 500 * time.Millisecond,
+	}
+	start := time.Now()
+	c, offer, err := peer.Offer(ctx, cfg)
+	if err != nil {
+		t.Fatalf("Offer: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+	elapsed := time.Since(start)
+
+	if elapsed > 5*time.Second {
+		t.Fatalf("Offer stalled on unreachable STUN: took %s, want ~GatherTimeout", elapsed)
+	}
+	if !strings.Contains(offer.SDP, "a=candidate:") {
+		t.Error("partial SDP missing host candidates")
+	}
+	t.Logf("gather bounded at %s (timeout 500ms + margin)", elapsed.Round(time.Millisecond))
+}
