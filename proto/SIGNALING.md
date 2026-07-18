@@ -135,9 +135,10 @@ offset  field
 - Decoder: collect frames until all `total` seen (any loop pass), order by `seq`,
   concatenate, verify `crc32`, inflate. Frames with wrong magic/length are skipped.
 
-## Paste format (fallback channel)
+## Paste format (default `none`-preset channel — ships M3.6)
 
-Single line, for terminals without cameras:
+Single line, for terminals without cameras — and the primary out-of-band channel
+until frames land in M4:
 `jsi1:` + base64url(no padding) of the **same** `payload` (unframed).
 Decoder path: strip prefix → base64url-decode → verify crc32? — the crc is not
 embedded in the paste format; integrity comes from zlib's own checksum + the

@@ -1,8 +1,11 @@
 # JSI — Master Plan & Spec
 
 **Just Send It** — serverless-first, P2P, private file transfer.
-Version: spec v0.4 · Status: approved-for-implementation · Source: `proj-proposal.docx` v0.2
+Version: spec v0.5 · Status: approved-for-implementation · Source: `proj-proposal.docx` v0.2
 
+> v0.5: QP/1 payload codec + paste channel move from M4 into M3 (tasks M3.6/M3.7)
+> — the D15 `none` default is honored from the first CLI build; M4 becomes
+> QR presentation (frames, rendering, camera) only.
 > v0.4: adds D15 — user-controlled external-services policy (signaling × transport
 > axes; default = no external infrastructure except STUN).
 
@@ -248,7 +251,8 @@ Payload = zlib-compressed JSEP JSON → split into indexed frames:
 copy-paste. Handshake is two-phase and reverses direction: sender's offer frames →
 receiver scans; receiver's answer frames → sender scans. ICE servers follow the
 D15 policy: preset `none` = host + STUN (zero CF contact); `fallback` adds TURN
-via an anonymous `/v1/ice` call.
+via an anonymous `/v1/ice` call. Delivery: the paste blob ships first (M3.6) as
+the default `none` channel; animated frames are the M4 UX upgrade.
 
 ---
 
@@ -294,7 +298,8 @@ type Channel interface {
 }
 ```
 
-Implementations: `Worker{BaseURL}` (M2), `QR{Display, Scanner}` (M4). This single
+Implementations: `Worker{BaseURL}` (M2), `Paste{In, Out}` (M3.6),
+`QR{Display, Scanner}` (M4). This single
 seam is also where Yggdrasil signaling (S1) plugs in. Worker impl requires
 `FetchICEServers(ctx)` before `Offer` (D6) — surfaced as
 `Worker.ICEServers(ctx) ([]webrtc.ICEServer, error)`.
@@ -317,8 +322,8 @@ Pure TP/1 state machines; UI-agnostic (events feed CLI bars and TUI bubbles alik
 - Flags (D15): `--externals none|fallback|full` (default `none`),
   `--signal qr|worker` and `--relay/--no-relay` (per-axis C1 overrides),
   `--server` (worker URL override), `-v`.
-  M3 note: QR signaling lands in M4, so M3-era builds behave as preset `full`;
-  the full flag surface ships with M4.
+  Default `none` works from M3 onward via the paste channel (M3.6): out-of-band
+  blob exchange, zero CF contact.
 - Progress: `schollz/progressbar/v3` (only UI dep). Exit codes: 0 ok, 1 generic,
   2 signaling timeout, 3 peer rejected, 4 integrity failure.
 
@@ -378,16 +383,18 @@ gathering`). `∥` = parallelizable with siblings after deps met. Every task's
 | M3.3 | Progress bars + events → UX, exit codes per §7.5 | M3.1, M3.2 | live progress both sides |
 | M3.4 | Error paths: timeout (exit 2), reject (3), hash fail (4), SIGINT cancel | M3.3 | each path exercised in test |
 | M3.5 | e2e: two CLIs over deployed dev worker transfer 100 MiB, sha256 compare | M1.8, M3.3 | `scripts/e2e-cli.sh` green |
+| M3.6 | QP/1 payload codec (zlib, CRC-32, base64url) + `signal.Paste` + CLI wiring; default preset `none` goes live | M2.5, M3.2 | offline paste transfer between two terminals; `jsi send` with no flags never contacts CF |
+| M3.7 | e2e paste: blobs piped between two CLIs, network-isolation assertion (no CF traffic) | M3.6 | `scripts/e2e-paste.sh` green |
 
 ### M4 — Serverless contact (QR signaling) ✦ *SDP+ICE over QR, CF only as fallback*
 
 | ID | Task | Deps | Acceptance |
 |---|---|---|---|
 | M4.1 | **SPIKE** `spike/qr-size`: measure deflated SDP sizes vs QR capacities; decide frame size | M2.4 | report committed to `proto/SIGNALING.md` appendix |
-| M4.2 | QP/1 codec: split/join frames, CRC-32, base64url paste format | M4.1 | round-trip + corruption tests |
+| M4.2 | QP/1 frame codec: split/join indexed frames, CRC-32 verify (payload codec + paste channel landed in M3.6) | M4.1 | round-trip + corruption + frame-loss tests |
 | M4.3 | Terminal animated-QR renderer (frame loop, adjustable fps/size) | M4.2 | scans reliably with a phone camera |
 | M4.4 | **SPIKE** `spike/qr-camera`: webcam capture (`pion/mediadevices`) + decode (`gozxing`) | M4.2 | go/no-go committed; fallback = paste-only |
-| M4.5 | `signal.QR` implements `Channel`; CLI `--signal qr` both roles | M4.3, M4.4 (or paste fallback) | CLI↔CLI transfer with **network namespace isolation proving no CF traffic** |
+| M4.5 | `signal.QR` implements `Channel`; CLI `--signal qr` both roles | M4.3, M4.4 | CLI↔CLI transfer with **network namespace isolation proving no CF traffic** |
 | M4.6 | D15 policy wiring: `--externals` presets + per-axis overrides; `fallback` escalation to worker with explicit user notice; anonymous `/v1/ice` upfront fetch | M4.5 | zero CF contact provable in `none`; escalation notice shown in `fallback` |
 
 ### M5 — TUI ✦ *full interactive send/receive flow*
