@@ -214,14 +214,25 @@ func newSession(ep Endpoint) *session {
 		done:   make(chan struct{}),
 		closed: make(chan struct{}),
 	}
-	s.dc.OnMessage(func(m webrtc.DataChannelMessage) {
+	pump := func(m webrtc.DataChannelMessage) {
 		// Blocking on inbox (while the session runs) is the D9 receive-side
 		// backpressure; after end, messages drop instead of piling up.
 		select {
 		case s.inbox <- m:
 		case <-s.done:
 		}
-	})
+	}
+	// If the endpoint provides ordered pre-handler buffering (*peer.Conn
+	// does), install through it: Pion drops messages that arrive before a
+	// handler is registered, and the raw-channel path would lose early
+	// messages (e.g. the peer's TP/1 hello) to that race.
+	if hm, ok := ep.(interface {
+		OnMessage(func(webrtc.DataChannelMessage))
+	}); ok {
+		hm.OnMessage(pump)
+	} else {
+		s.dc.OnMessage(pump)
+	}
 	s.dc.OnClose(func() { s.closeOnce.Do(func() { close(s.closed) }) })
 	return s
 }
