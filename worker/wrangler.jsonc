@@ -2,9 +2,30 @@
   // JSI signaling worker — SP/1 (proto/SIGNALING.md). Keep src/ ~200 lines.
   "name": "jsi-signal",
   "main": "src/index.ts",
-  "compatibility_date": "2026-07-18"
+  "compatibility_date": "2026-07-18",
 
-  // M1.2 adds: kv_namespaces [SESSIONS]
-  // M1.3 adds: vars.TURN_KEY_ID + secret TURN_API_TOKEN
-  // M1.6 adds: ratelimits [POST_LIMITER]
+  // M1.2: session KV. M1.8 replaces "local-dev-placeholder" with the real
+  // namespace id from `wrangler kv namespace create SESSIONS`.
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "local-dev-placeholder",
+      "preview_id": "local-dev-placeholder"
+    }
+  ],
+
+  "vars": {
+    "SESSION_TTL_SECONDS": "90",
+    // Real TURN key id is set at deploy time (M1.8); empty = STUN-only local dev.
+    "TURN_KEY_ID": ""
+  },
+
+  // M1.6: per-IP rate limiting on POSTs + GET /v1/ice (SP/1 §Cross-cutting).
+  "ratelimits": [
+    {
+      "name": "POST_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 }
+    }
+  ]
 }
