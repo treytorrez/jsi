@@ -57,6 +57,11 @@ type Conn struct {
 	mu sync.Mutex // guards dc
 	dc *webrtc.DataChannel
 
+	msgMu      sync.Mutex // guards msgHandler, msgBuf, msgFlushed
+	msgHandler func(webrtc.DataChannelMessage)
+	msgBuf     []webrtc.DataChannelMessage
+	msgFlushed bool
+
 	openCh chan struct{} // cap 1: signaled on channel OnOpen
 	lowCh  chan struct{} // cap 1: signaled on OnBufferedAmountLow
 }
@@ -87,6 +92,11 @@ func (c *Conn) setChannel(dc *webrtc.DataChannel) {
 	dc.SetBufferedAmountLowThreshold(bufferedLowWatermark)
 	dc.OnBufferedAmountLow(func() { signal(c.lowCh) })
 	dc.OnOpen(func() { signal(c.openCh) })
+	// Buffer inbound messages from the moment the channel exists: Pion drops
+	// messages arriving with no registered OnMessage handler, so a handler
+	// installed later (e.g. by internal/transfer) would otherwise lose early
+	// messages (TP/1 hello) to a race.
+	dc.OnMessage(c.routeMessage)
 
 	c.mu.Lock()
 	c.dc = dc
@@ -252,6 +262,45 @@ func (c *Conn) Channel() *webrtc.DataChannel {
 	return c.dc
 }
 
+// routeMessage buffers inbound messages until OnMessage installs a handler.
+func (c *Conn) routeMessage(m webrtc.DataChannelMessage) {
+	c.msgMu.Lock()
+	if c.msgFlushed {
+		h := c.msgHandler
+		c.msgMu.Unlock()
+		if h != nil {
+			h(m)
+		}
+		return
+	}
+	c.msgBuf = append(c.msgBuf, m)
+	c.msgMu.Unlock()
+}
+
+// OnMessage sets the message handler, replaying any messages buffered before
+// the call in arrival order first. Messages arriving during replay keep
+// buffering and are drained by the replay loop, so ordering is preserved.
+// Subsequent calls replace the handler.
+func (c *Conn) OnMessage(f func(webrtc.DataChannelMessage)) {
+	c.msgMu.Lock()
+	c.msgHandler = f
+	c.msgMu.Unlock()
+	for {
+		c.msgMu.Lock()
+		if len(c.msgBuf) == 0 {
+			c.msgFlushed = true
+			c.msgMu.Unlock()
+			return
+		}
+		buf := c.msgBuf
+		c.msgBuf = nil
+		c.msgMu.Unlock()
+		for _, m := range buf {
+			f(m)
+		}
+	}
+}
+
 // WriteFlow sends one chunk with D9 flow control: when the buffered amount
 // reaches 1 MiB it waits for OnBufferedAmountLow (threshold 512 KiB, set
 // once at channel setup) or ctx cancellation, then sends. data must be at
@@ -279,6 +328,54 @@ func (c *Conn) WriteFlow(ctx context.Context, data []byte) error {
 		return fmt.Errorf("peer: send: %w", err)
 	}
 	return nil
+}
+
+// ConnectionPath reports how the established connection carries bytes, for
+// the D15 transparency line printed at connect time ("connected: …"). It
+// reads the nominated ICE candidate pair from PeerConnection stats and maps
+// the local candidate type to a short human string:
+//
+//	host  → "direct (host)"
+//	srflx → "via STUN (srflx)"
+//	prflx → "via peer-reflexive (prflx)"
+//	relay → "TURN RELAY (Cloudflare carries encrypted bytes)"
+//
+// (v1 TURN is Cloudflare Realtime, minted by the worker per D7; a relay sees
+// DTLS ciphertext only, PLAN.md §10.) Call after WaitOpen. The ctx is
+// checked before the (synchronous) stats read.
+func (c *Conn) ConnectionPath(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	report := c.pc.GetStats()
+	var pair *webrtc.ICECandidatePairStats
+	for _, s := range report {
+		if ps, ok := s.(webrtc.ICECandidatePairStats); ok &&
+			ps.Nominated && ps.State == webrtc.StatsICECandidatePairStateSucceeded {
+			p := ps
+			pair = &p
+			break
+		}
+	}
+	if pair == nil {
+		return "", errors.New("peer: no nominated ICE candidate pair (not connected?)")
+	}
+	local, ok := report[pair.LocalCandidateID].(webrtc.ICECandidateStats)
+	if !ok {
+		return "", fmt.Errorf("peer: local candidate %q missing from stats report", pair.LocalCandidateID)
+	}
+	switch local.CandidateType {
+	case webrtc.ICECandidateTypeHost:
+		return "direct (host)", nil
+	case webrtc.ICECandidateTypeSrflx:
+		return "via STUN (srflx)", nil
+	case webrtc.ICECandidateTypePrflx:
+		return "via peer-reflexive (prflx)", nil
+	case webrtc.ICECandidateTypeRelay:
+		return "TURN RELAY (Cloudflare carries encrypted bytes)", nil
+	default:
+		return "", fmt.Errorf("peer: unknown local candidate type %v", local.CandidateType)
+	}
 }
 
 // Close closes the data channel and the PeerConnection.
