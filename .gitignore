@@ -1,0 +1,25 @@
+# secrets — never commit
+.dev.vars
+.env
+*.pem
+
+# node / worker
+node_modules/
+dist/
+.wrangler/
+coverage/
+
+# go
+bin/
+/jsi
+/jsi-tui
+*.test
+*.out
+
+# nix / direnv
+result
+.direnv/
+
+# os/editor
+.DS_Store
+*.swp
