@@ -1,11 +1,14 @@
+// jsi — Just Send It: serverless-first P2P file transfer (PLAN.md §7.5,
+// milestone M3). All logic lives in cmd/jsi/internal/cli; main is the
+// thinnest possible shell so the flows stay testable.
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/treyt/jsi/cmd/jsi/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "jsi: not yet implemented — see PLAN.md (milestone M3)")
-	os.Exit(1)
+	os.Exit(cli.Main(os.Args))
 }
