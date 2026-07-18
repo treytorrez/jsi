@@ -40,6 +40,7 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 		return a.verbose, err
 	}
 	a.policy, a.server, a.yes = pol, fv.server, fv.yes
+	a.noSTUN = fv.noSTUN
 
 	tok := ""
 	if len(pos) == 1 {
@@ -63,7 +64,7 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 	if err != nil {
 		return a.verbose, err
 	}
-	conn, answer, err := peer.Answer(ctx, peer.Config{ICEServers: ice, EnableMDNS: true}, offer)
+	conn, answer, err := peer.Answer(ctx, peer.Config{ICEServers: ice, EnableMDNS: !fv.noMDNS}, offer)
 	if err != nil {
 		return a.verbose, err
 	}

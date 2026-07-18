@@ -45,6 +45,7 @@ func (a *app) send(ctx context.Context, args []string) (bool, error) {
 		return a.verbose, err
 	}
 	a.policy, a.server, a.pwaURL = pol, fv.server, fv.pwaURL
+	a.noSTUN = fv.noSTUN
 
 	// D15 transparency: announce external contact BEFORE signaling.
 	eprintln(a.stderr, pol.Summary(a.server))
@@ -53,7 +54,7 @@ func (a *app) send(ctx context.Context, args []string) (bool, error) {
 	if err != nil {
 		return a.verbose, err
 	}
-	conn, offer, err := peer.Offer(ctx, peer.Config{ICEServers: ice, EnableMDNS: true})
+	conn, offer, err := peer.Offer(ctx, peer.Config{ICEServers: ice, EnableMDNS: !fv.noMDNS})
 	if err != nil {
 		return a.verbose, err
 	}
@@ -88,6 +89,9 @@ func (a *app) send(ctx context.Context, args []string) (bool, error) {
 // TURN stripped on the --no-relay axis.
 func (a *app) iceServers(ctx context.Context) ([]webrtc.ICEServer, error) {
 	if !a.policy.FetchICE {
+		if a.noSTUN {
+			return nil, nil // host candidates only: zero external contact
+		}
 		return BuiltinSTUN(), nil
 	}
 	w := &signal.Worker{BaseURL: a.server}
