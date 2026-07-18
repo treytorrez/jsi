@@ -1,0 +1,3 @@
+# Copy to .dev.vars and fill in to exercise TURN minting locally.
+# NEVER put a real token in this committed file — .dev.vars itself is gitignored.
+TURN_API_TOKEN=
