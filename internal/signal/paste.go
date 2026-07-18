@@ -27,25 +27,62 @@ const defaultMaxLineBytes = 1 << 20
 // hostile or garbled paste).
 const maxPayloadBytes = 1 << 20
 
+// deflatePayload serializes desc as JSEP JSON {"type","sdp"} and deflates
+// it with zlib — the QP/1 §Payload bytes shared by the paste blob
+// (EncodePayload) and the QR frames (SplitFrames, M4).
+func deflatePayload(desc webrtc.SessionDescription) ([]byte, error) {
+	raw, err := json.Marshal(desc)
+	if err != nil {
+		return nil, fmt.Errorf("JSON: %w", err)
+	}
+	var buf bytes.Buffer
+	zw := zlib.NewWriter(&buf)
+	if _, err := zw.Write(raw); err != nil {
+		return nil, fmt.Errorf("deflate: %w", err)
+	}
+	if err := zw.Close(); err != nil {
+		return nil, fmt.Errorf("deflate: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// inflatePayload reverses deflatePayload: inflate (bounded by
+// maxPayloadBytes — zlib expands, so this caps a hostile or garbled
+// input), unmarshal, and require an offer or answer.
+func inflatePayload(deflated []byte) (webrtc.SessionDescription, error) {
+	zr, err := zlib.NewReader(bytes.NewReader(deflated))
+	if err != nil {
+		return webrtc.SessionDescription{}, fmt.Errorf("zlib: %w", err)
+	}
+	defer func() { _ = zr.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(zr, maxPayloadBytes+1))
+	if err != nil {
+		return webrtc.SessionDescription{}, fmt.Errorf("inflate: %w", err)
+	}
+	if len(raw) > maxPayloadBytes {
+		return webrtc.SessionDescription{}, fmt.Errorf("exceeds %d bytes inflated", maxPayloadBytes)
+	}
+	var desc webrtc.SessionDescription
+	if err := json.Unmarshal(raw, &desc); err != nil {
+		return webrtc.SessionDescription{}, fmt.Errorf("JSON: %w", err)
+	}
+	if desc.Type != webrtc.SDPTypeOffer && desc.Type != webrtc.SDPTypeAnswer {
+		return webrtc.SessionDescription{}, fmt.Errorf("type %q, want offer or answer", desc.Type)
+	}
+	return desc, nil
+}
+
 // EncodePayload serializes desc to a QP/1 paste blob (proto/SIGNALING.md
 // §Payload + §Paste format): JSEP JSON {"type","sdp"} → zlib deflate →
 // "jsi1:" + base64url without padding. The §Payload CRC-32 is a QR-frame
 // concern (M4) and is deliberately absent from the paste format —
 // integrity comes from zlib's own checksum and the DTLS handshake.
 func EncodePayload(desc webrtc.SessionDescription) (string, error) {
-	raw, err := json.Marshal(desc)
+	payload, err := deflatePayload(desc)
 	if err != nil {
-		return "", fmt.Errorf("signal: encode payload JSON: %w", err)
+		return "", fmt.Errorf("signal: encode payload %w", err)
 	}
-	var buf bytes.Buffer
-	zw := zlib.NewWriter(&buf)
-	if _, err := zw.Write(raw); err != nil {
-		return "", fmt.Errorf("signal: deflate payload: %w", err)
-	}
-	if err := zw.Close(); err != nil {
-		return "", fmt.Errorf("signal: deflate payload: %w", err)
-	}
-	return payloadPrefix + base64.RawURLEncoding.EncodeToString(buf.Bytes()), nil
+	return payloadPrefix + base64.RawURLEncoding.EncodeToString(payload), nil
 }
 
 // DecodePayload parses a paste blob produced by EncodePayload. Surrounding
@@ -59,24 +96,9 @@ func DecodePayload(s string) (webrtc.SessionDescription, error) {
 	if err != nil {
 		return webrtc.SessionDescription{}, fmt.Errorf("signal: paste payload base64: %w", err)
 	}
-	zr, err := zlib.NewReader(bytes.NewReader(deflated))
+	desc, err := inflatePayload(deflated)
 	if err != nil {
-		return webrtc.SessionDescription{}, fmt.Errorf("signal: paste payload zlib: %w", err)
-	}
-	defer func() { _ = zr.Close() }()
-	raw, err := io.ReadAll(io.LimitReader(zr, maxPayloadBytes+1))
-	if err != nil {
-		return webrtc.SessionDescription{}, fmt.Errorf("signal: paste payload inflate: %w", err)
-	}
-	if len(raw) > maxPayloadBytes {
-		return webrtc.SessionDescription{}, fmt.Errorf("signal: paste payload exceeds %d bytes inflated", maxPayloadBytes)
-	}
-	var desc webrtc.SessionDescription
-	if err := json.Unmarshal(raw, &desc); err != nil {
-		return webrtc.SessionDescription{}, fmt.Errorf("signal: paste payload JSON: %w", err)
-	}
-	if desc.Type != webrtc.SDPTypeOffer && desc.Type != webrtc.SDPTypeAnswer {
-		return webrtc.SessionDescription{}, fmt.Errorf("signal: paste payload type %q, want offer or answer", desc.Type)
+		return webrtc.SessionDescription{}, fmt.Errorf("signal: paste payload %w", err)
 	}
 	return desc, nil
 }
