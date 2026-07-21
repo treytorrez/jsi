@@ -83,8 +83,14 @@ export async function send(
   }));
   sendText(channel, { type: "manifest", files: manifest });
 
-  // wait for accept / reject
-  const acceptMsg = await inbox.next(signal);
+  // wait for accept / reject — skip any hello messages from the receiver
+  // (the receiver's hello may have been buffered before the inbox was set up).
+  let acceptMsg;
+  while (true) {
+    acceptMsg = await inbox.next(signal);
+    if (acceptMsg.type === "hello") continue; // skip peer's hello
+    break;
+  }
   if (acceptMsg.type === "reject") throw ErrRejected;
   if (acceptMsg.type !== "accept") throw ErrProtocol;
 
@@ -170,8 +176,14 @@ export async function receive(
   // hello
   sendText(channel, { type: "hello", v: Version, app: "jsi-pwa/0.1.0" });
 
-  // wait for manifest
-  const manifestMsg = await inbox.next(signal);
+  // wait for manifest — skip any hello messages from the sender
+  // (the sender's hello may have been buffered before the inbox was set up).
+  let manifestMsg;
+  while (true) {
+    manifestMsg = await inbox.next(signal);
+    if (manifestMsg.type === "hello") continue; // skip peer's hello
+    break;
+  }
   if (manifestMsg.type !== "manifest") throw ErrProtocol;
 
   // accept all
