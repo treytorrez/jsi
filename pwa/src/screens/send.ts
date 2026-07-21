@@ -118,6 +118,14 @@ export function renderSend(
         `;
       case "answer":
         return `
+          ${displayText ? `
+            <p>Send this blob to the receiver:</p>
+            <div class="blob-box" id="offer-blob">${escapeHtml(displayText)}</div>
+            <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem">
+              <md-filled-button id="btn-copy">Copy to clipboard</md-filled-button>
+              <md-outlined-button id="btn-copy-fallback">Select all</md-outlined-button>
+            </div>
+          ` : ""}
           <p>Paste the receiver's answer blob:</p>
           <textarea id="answer-input" placeholder="jsi1:..." rows="4"
             style="width:100%;background:#0d1117;border:1px solid #304050;border-radius:8px;
