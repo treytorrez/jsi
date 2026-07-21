@@ -11,6 +11,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: jsi
     permissions:
       contents: read
       deployments: write
