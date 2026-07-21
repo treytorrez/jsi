@@ -4,10 +4,6 @@
 
 import jsQR from "jsqr";
 
-export interface ScannerHandle {
-  stop: () => void;
-}
-
 // scanQR opens the camera and scans until a QR is found, the signal aborts,
 // or an error occurs. Resolves with the decoded text.
 export async function scanQR(
@@ -19,16 +15,38 @@ export async function scanQR(
     audio: false,
   });
   video.srcObject = stream;
+  // iOS requires these attributes set before play().
   video.setAttribute("playsinline", "true");
-  await video.play();
+  video.muted = true;
 
-  // Try BarcodeDetector first (Chrome/Edge/Android).
+  // Wait for the video to actually have frames.
+  await new Promise<void>((resolve, reject) => {
+    if (video.readyState >= 2) {
+      resolve();
+      return;
+    }
+    video.onloadeddata = () => resolve();
+    setTimeout(() => reject(new Error("camera timed out starting")), 5000);
+  });
+
+  await video.play().catch(() => {});
+
+  // Try BarcodeDetector first (Chrome/Edge/Android). If it detects nothing
+  // after 2 seconds, fall back to jsQR (some BarcodeDetector impls are buggy).
   const detector = await getBarcodeDetector();
   if (detector) {
-    return scanWithDetector(detector, video, signal);
+    try {
+      return await Promise.race([
+        scanWithDetector(detector, video, signal),
+        new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error("detector-timeout")), 3000),
+        ),
+      ]);
+    } catch {
+      // Fall through to jsQR.
+    }
   }
 
-  // Fallback: jsQR on canvas frames (Safari/Firefox).
   return scanWithJsQR(video, signal);
 }
 
@@ -41,19 +59,15 @@ async function getBarcodeDetector(): Promise<
     const det = new Ctor({ formats: ["qr_code"] }) as {
       detect: (source: CanvasImageSource) => Promise<Array<{ rawValue: string }>>;
     };
-    // Verify it actually works (some browsers have the constructor but not the impl).
-    await det.detect(createBlankCanvas());
+    // Verify it actually works.
+    const c = document.createElement("canvas");
+    c.width = 1;
+    c.height = 1;
+    await det.detect(c);
     return det;
   } catch {
     return null;
   }
-}
-
-function createBlankCanvas(): CanvasImageSource {
-  const c = document.createElement("canvas");
-  c.width = 1;
-  c.height = 1;
-  return c;
 }
 
 async function scanWithDetector(
@@ -69,13 +83,15 @@ async function scanWithDetector(
         return;
       }
       try {
-        const results = await detector.detect(video);
-        if (results && results.length > 0 && results[0].rawValue) {
-          resolve(results[0].rawValue);
-          return;
+        if (video.videoWidth > 0) {
+          const results = await detector.detect(video);
+          if (results && results.length > 0 && results[0].rawValue) {
+            resolve(results[0].rawValue);
+            return;
+          }
         }
       } catch {
-        // detector not ready yet — keep trying
+        // not ready — keep trying
       }
       raf = requestAnimationFrame(tick);
     };
@@ -89,7 +105,7 @@ async function scanWithJsQR(
   signal?: AbortSignal,
 ): Promise<string> {
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
   return new Promise((resolve, reject) => {
     let raf = 0;
@@ -98,17 +114,23 @@ async function scanWithJsQR(
         reject(new DOMException("Aborted", "AbortError"));
         return;
       }
-      if (video.readyState === video.HAVE_CURRENT_DATA) {
+      // Need actual video dimensions (not 0).
+      if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "dontInvert",
-        });
-        if (code && code.data) {
-          resolve(code.data);
-          return;
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          // attemptBoth — some screens render QR with inverted contrast.
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "attemptBoth",
+          });
+          if (code && code.data) {
+            resolve(code.data);
+            return;
+          }
+        } catch {
+          // canvas not ready — keep trying
         }
       }
       raf = requestAnimationFrame(tick);

@@ -43,7 +43,7 @@ export function renderQRReceive(
         .scanner-hint { color: #90a4ae; text-align: center; margin: 1rem 0; }
         .scanner-video { width: 100%; max-width: 400px; border-radius: 12px; display: block; margin: 0 auto; }
         .qr-display { text-align: center; margin: 1rem 0; }
-        .qr-display img { background: #fff; padding: 12px; border-radius: 12px; max-width: 320px; width: 100%; }
+        .qr-display img { background: #fff; padding: 12px; border-radius: 12px; max-width: 400px; width: 100%; }
         .progress-text { color: #81c784; margin: 0.5rem 0; }
         .error { color: #ef5350; margin: 0.5rem 0; }
         .saved { color: #b0bec5; font-size: 0.9rem; margin-top: 0.5rem; }
@@ -133,9 +133,9 @@ export function renderQRReceive(
       const answer = await peer.createAnswer(offer);
       answerBlob = await encodePayload(answer);
       qrDataUrl = await QRCode.toDataURL(answerBlob, {
-        width: 320,
+        width: 400,
         margin: 1,
-        errorCorrectionLevel: "L",
+        errorCorrectionLevel: "M",
         color: { dark: "#1a1a2e", light: "#ffffff" },
       });
       phase = "answer-qr";

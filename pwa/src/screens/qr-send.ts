@@ -44,7 +44,7 @@ export function renderQRSend(
         .file-pick:hover { border-color: #64b5f6; }
         .file-list { color: #b0bec5; font-size: 0.9rem; margin-bottom: 1rem; }
         .qr-display { text-align: center; margin: 1rem 0; }
-        .qr-display img { background: #fff; padding: 12px; border-radius: 12px; max-width: 320px; width: 100%; }
+        .qr-display img { background: #fff; padding: 12px; border-radius: 12px; max-width: 400px; width: 100%; }
         .scanner-hint { color: #90a4ae; text-align: center; margin: 1rem 0; }
         .scanner-video { width: 100%; max-width: 400px; border-radius: 12px; display: block; margin: 0 auto; }
         .progress-text { color: #81c784; margin: 0.5rem 0; }
@@ -133,9 +133,9 @@ export function renderQRSend(
       offerBlob = await encodePayload(offer);
       // Generate QR as a data URL (large, static — no animation needed).
       qrDataUrl = await QRCode.toDataURL(offerBlob, {
-        width: 320,
+        width: 400,
         margin: 1,
-        errorCorrectionLevel: "L",
+        errorCorrectionLevel: "M",
         color: { dark: "#1a1a2e", light: "#ffffff" },
       });
       phase = "offer-qr";
