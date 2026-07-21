@@ -6,6 +6,8 @@ import (
 	"io"
 	"reflect"
 	"testing"
+
+	"github.com/treyt/jsi/internal/policy"
 )
 
 func testFlagSet() (*flag.FlagSet, *flagValues) {
@@ -46,7 +48,7 @@ func TestParseFlags(t *testing.T) {
 			}},
 		{"double dash ends flags", []string{"--", "--externals"},
 			func(t *testing.T, fv *flagValues, pos []string, err error) {
-				if err != nil || fv.externals != ExternalsNone || !reflect.DeepEqual(pos, []string{"--externals"}) {
+				if err != nil || fv.externals != policy.ExternalsNone || !reflect.DeepEqual(pos, []string{"--externals"}) {
 					t.Errorf("got fv=%+v pos=%v err=%v", fv, pos, err)
 				}
 			}},
@@ -93,17 +95,17 @@ func TestParseFlags(t *testing.T) {
 // TestResolveFlags covers the raw-flags → Policy step, including the one
 // contradictory combination.
 func TestResolveFlags(t *testing.T) {
-	fv := &flagValues{externals: ExternalsNone, relay: true, noRelay: true}
+	fv := &flagValues{externals: policy.ExternalsNone, relay: true, noRelay: true}
 	if _, err := fv.resolve(); err == nil {
 		t.Error("--relay with --no-relay: got nil error, want conflict")
 	}
 
-	fv = &flagValues{externals: ExternalsFull}
+	fv = &flagValues{externals: policy.ExternalsFull}
 	pol, err := fv.resolve()
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	if pol.Signal != SignalWorker || !pol.Relay || !pol.FetchICE {
+	if pol.Signal != policy.SignalWorker || !pol.Relay || !pol.FetchICE {
 		t.Errorf("resolve(full): got %+v", pol)
 	}
 }

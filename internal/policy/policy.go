@@ -1,4 +1,8 @@
-package cli
+// Package policy resolves the D15 external-services connection policy
+// (PLAN.md §3 D15, §4): two orthogonal axes (signaling × transport), three
+// presets (none|fallback|full) plus per-axis overrides. Shared by the CLI
+// and TUI so both clients present the same connection model.
+package policy
 
 import (
 	"fmt"
@@ -15,16 +19,16 @@ const (
 	ExternalsFull     = "full"
 )
 
-// Signaling channels (--signal; PLAN.md §7.5 — "qr" arrives in M4).
+// Signaling channels (--signal; PLAN.md §7.5).
 const (
 	SignalPaste  = "paste"
 	SignalWorker = "worker"
 	SignalQR     = "qr"
 )
 
-// pasteTimeout is the QP/1 offline-signaling timeout per direction
+// PasteTimeout is the QP/1 offline-signaling timeout per direction
 // (proto/SIGNALING.md §Sequence): 120 s.
-const pasteTimeout = 120 * time.Second
+const PasteTimeout = 120 * time.Second
 
 // BuiltinSTUN is the ICE server list of the D15 `none` preset: STUN only,
 // zero worker contact. STUN is the one always-permitted external —

@@ -1,4 +1,4 @@
-package cli
+package policy
 
 import (
 	"strings"

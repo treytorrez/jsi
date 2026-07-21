@@ -13,6 +13,7 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	"github.com/treyt/jsi/internal/peer"
+	"github.com/treyt/jsi/internal/policy"
 	"github.com/treyt/jsi/internal/signal"
 	"github.com/treyt/jsi/internal/transfer"
 )
@@ -92,7 +93,7 @@ func (a *app) iceServers(ctx context.Context) ([]webrtc.ICEServer, error) {
 		if a.noSTUN {
 			return nil, nil // host candidates only: zero external contact
 		}
-		return BuiltinSTUN(), nil
+		return policy.BuiltinSTUN(), nil
 	}
 	w := &signal.Worker{BaseURL: a.server}
 	servers, err := w.ICEServers(ctx)
@@ -100,7 +101,7 @@ func (a *app) iceServers(ctx context.Context) ([]webrtc.ICEServer, error) {
 		return nil, fmt.Errorf("fetch ICE servers from %s: %w", a.server, err)
 	}
 	if !a.policy.Relay {
-		servers = StripTURN(servers)
+		servers = policy.StripTURN(servers)
 	}
 	return servers, nil
 }
@@ -111,11 +112,11 @@ func (a *app) iceServers(ctx context.Context) ([]webrtc.ICEServer, error) {
 // before the SDP exchange completes (error or the QP/1 120 s timeout),
 // announcing the escalation first (D15 transparency).
 func (a *app) senderHandshake(ctx context.Context, offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
-	if a.policy.Signal == SignalWorker {
+	if a.policy.Signal == policy.SignalWorker {
 		return a.senderWorker(ctx, offer)
 	}
 	var wait func(context.Context) (webrtc.SessionDescription, error)
-	if a.policy.Signal == SignalQR {
+	if a.policy.Signal == policy.SignalQR {
 		eprintln(a.stderr, "showing the offer as animated QR — point the receiver's camera at the screen (blob is also on stdout for pasting):")
 		q := &signal.QR{Out: a.stderr, In: a.stdin, BlobOut: a.stdout}
 		_, w, err := q.Announce(ctx, offer)
@@ -133,7 +134,7 @@ func (a *app) senderHandshake(ctx context.Context, offer webrtc.SessionDescripti
 		wait = w
 	}
 	eprintln(a.stderr, "paste the receiver's answer blob:")
-	waitCtx, cancel := context.WithTimeout(ctx, pasteTimeout)
+	waitCtx, cancel := context.WithTimeout(ctx, policy.PasteTimeout)
 	answer, err := wait(waitCtx)
 	cancel()
 	switch {
@@ -145,8 +146,8 @@ func (a *app) senderHandshake(ctx context.Context, offer webrtc.SessionDescripti
 		eprintln(a.stderr, "offline signaling failed — using Cloudflare signaling server (--externals fallback)")
 		return a.senderWorker(ctx, offer)
 	case errors.Is(err, context.DeadlineExceeded):
-		eprintf(a.stderr, "offline signaling timed out after %s — re-run both sides and paste promptly, or use --externals fallback|full.\n", pasteTimeout)
-		return webrtc.SessionDescription{}, fmt.Errorf("%w: no answer pasted within %s", signal.ErrTimeout, pasteTimeout)
+		eprintf(a.stderr, "offline signaling timed out after %s — re-run both sides and paste promptly, or use --externals fallback|full.\n", policy.PasteTimeout)
+		return webrtc.SessionDescription{}, fmt.Errorf("%w: no answer pasted within %s", signal.ErrTimeout, policy.PasteTimeout)
 	default:
 		return webrtc.SessionDescription{}, err
 	}

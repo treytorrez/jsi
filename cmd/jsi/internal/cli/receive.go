@@ -10,6 +10,7 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	"github.com/treyt/jsi/internal/peer"
+	"github.com/treyt/jsi/internal/policy"
 	"github.com/treyt/jsi/internal/protocol"
 	"github.com/treyt/jsi/internal/signal"
 	"github.com/treyt/jsi/internal/transfer"
@@ -47,9 +48,9 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 		tok = pos[0]
 	}
 	switch {
-	case pol.Signal == SignalWorker && tok == "":
+	case pol.Signal == policy.SignalWorker && tok == "":
 		return a.verbose, errors.New("worker signaling needs the sender's token: jsi receive <token>")
-	case pol.Signal == SignalPaste && tok != "":
+	case pol.Signal == policy.SignalPaste && tok != "":
 		return a.verbose, errors.New("a token is only used with worker signaling (--signal worker or --externals full)")
 	}
 
@@ -71,7 +72,7 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 	defer func() { _ = conn.Close() }()
 	respondCtx := ctx
 	var stopDisplay context.CancelFunc
-	if pol.Signal == SignalQR {
+	if pol.Signal == policy.SignalQR {
 		// The answer frames animate until the channel opens — then the
 		// display stops so it can't fight the progress renderer (stderr).
 		respondCtx, stopDisplay = context.WithCancel(ctx)
@@ -82,10 +83,10 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 		}
 		return a.verbose, err
 	}
-	if pol.Signal == SignalPaste {
+	if pol.Signal == policy.SignalPaste {
 		eprintln(a.stderr, "send the answer blob back to the sender; connecting…")
 	}
-	if pol.Signal == SignalQR {
+	if pol.Signal == policy.SignalQR {
 		eprintln(a.stderr, "answer shown as QR (blob also on stdout); connecting…")
 	}
 	if err := conn.WaitOpen(ctx); err != nil {
@@ -119,14 +120,14 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 // completes, asking for the sender's token interactively after announcing
 // the escalation (D15 transparency).
 func (a *app) receiverOffer(ctx context.Context, tok string) (webrtc.SessionDescription, func(context.Context, webrtc.SessionDescription) error, error) {
-	if a.policy.Signal == SignalWorker {
+	if a.policy.Signal == policy.SignalWorker {
 		return a.receiverWorker(ctx, tok)
 	}
 	var offer webrtc.SessionDescription
 	var respond func(context.Context, webrtc.SessionDescription) error
 	var err error
-	joinCtx, cancel := context.WithTimeout(ctx, pasteTimeout)
-	if a.policy.Signal == SignalQR {
+	joinCtx, cancel := context.WithTimeout(ctx, policy.PasteTimeout)
+	if a.policy.Signal == policy.SignalQR {
 		eprintln(a.stderr, "paste the sender's offer blob (or scan their QR with the JSI web app):")
 		q := &signal.QR{Out: a.stderr, In: a.stdin, BlobOut: a.stdout}
 		offer, respond, err = q.Join(joinCtx, "")
@@ -150,8 +151,8 @@ func (a *app) receiverOffer(ctx context.Context, tok string) (webrtc.SessionDesc
 		}
 		return a.receiverWorker(ctx, line)
 	case errors.Is(err, context.DeadlineExceeded):
-		eprintf(a.stderr, "paste timed out after %s — re-run both sides and paste promptly, or use --externals fallback|full.\n", pasteTimeout)
-		return webrtc.SessionDescription{}, nil, fmt.Errorf("%w: no offer pasted within %s", signal.ErrTimeout, pasteTimeout)
+		eprintf(a.stderr, "paste timed out after %s — re-run both sides and paste promptly, or use --externals fallback|full.\n", policy.PasteTimeout)
+		return webrtc.SessionDescription{}, nil, fmt.Errorf("%w: no offer pasted within %s", signal.ErrTimeout, policy.PasteTimeout)
 	default:
 		return webrtc.SessionDescription{}, nil, err
 	}

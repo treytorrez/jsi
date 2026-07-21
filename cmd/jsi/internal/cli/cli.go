@@ -15,6 +15,8 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+
+	"github.com/treyt/jsi/internal/policy"
 )
 
 // DefaultServerURL is the hosted SP/1 worker (deployed 2026-07-18,
@@ -44,7 +46,7 @@ type app struct {
 	yes     bool
 	server  string
 	pwaURL  string
-	policy  Policy
+	policy  policy.Policy
 	noSTUN  bool
 }
 
@@ -105,7 +107,7 @@ func newFlagSet(name string, stderr io.Writer) (*flag.FlagSet, *flagValues) {
 	fv := &flagValues{}
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.StringVar(&fv.externals, "externals", ExternalsNone, "external-services policy: none|fallback|full")
+	fs.StringVar(&fv.externals, "externals", policy.ExternalsNone, "external-services policy: none|fallback|full")
 	fs.StringVar(&fv.signal, "signal", "", "signaling channel: paste|qr|worker (default: from --externals preset)")
 	fs.BoolVar(&fv.relay, "relay", false, "allow TURN relay (default: from preset)")
 	fs.BoolVar(&fv.noRelay, "no-relay", false, "forbid TURN relay (default: from preset)")
@@ -121,17 +123,17 @@ func newFlagSet(name string, stderr io.Writer) (*flag.FlagSet, *flagValues) {
 
 // resolve maps the raw flags to a Policy, catching the one contradictory
 // combination.
-func (fv *flagValues) resolve() (Policy, error) {
-	relay := RelayUnset
+func (fv *flagValues) resolve() (policy.Policy, error) {
+	relay := policy.RelayUnset
 	switch {
 	case fv.relay && fv.noRelay:
-		return Policy{}, errors.New("--relay and --no-relay are mutually exclusive")
+		return policy.Policy{}, errors.New("--relay and --no-relay are mutually exclusive")
 	case fv.relay:
-		relay = RelayOn
+		relay = policy.RelayOn
 	case fv.noRelay:
-		relay = RelayOff
+		relay = policy.RelayOff
 	}
-	return ResolvePolicy(fv.externals, fv.signal, relay)
+	return policy.ResolvePolicy(fv.externals, fv.signal, relay)
 }
 
 // errHelp is returned by parseFlags when -h/--help is seen.
