@@ -59,8 +59,17 @@ export async function send(
   files: SendFile[],
   onProgress?: ProgressCallback,
   signal?: AbortSignal,
+  drainBuffered?: () => Array<{ data: ArrayBuffer | string }>,
 ): Promise<void> {
   const inbox = setupInbox(channel);
+  // Drain any messages that arrived before the inbox was set up (race fix
+  // for PWA-to-PWA: the receiver's hello can arrive before the sender's
+  // transfer engine starts).
+  if (drainBuffered) {
+    for (const msg of drainBuffered()) {
+      routeBufferedMessage(inbox, msg.data);
+    }
+  }
 
   // hello
   sendText(channel, { type: "hello", v: Version, app: "jsi-pwa/0.1.0" });
@@ -148,8 +157,15 @@ export async function receive(
   channel: RTCDataChannel,
   onProgress?: ProgressCallback,
   signal?: AbortSignal,
+  drainBuffered?: () => Array<{ data: ArrayBuffer | string }>,
 ): Promise<ReceiveResult[]> {
   const inbox = setupInbox(channel);
+  // Drain any messages that arrived before the inbox was set up.
+  if (drainBuffered) {
+    for (const msg of drainBuffered()) {
+      routeBufferedMessage(inbox, msg.data);
+    }
+  }
 
   // hello
   sendText(channel, { type: "hello", v: Version, app: "jsi-pwa/0.1.0" });
@@ -236,6 +252,7 @@ type InboxMessage =
 
 interface Inbox {
   next: (signal?: AbortSignal) => Promise<InboxMessage>;
+  inject: (msg: InboxMessage) => void;
   close: () => void;
 }
 
@@ -295,6 +312,15 @@ function setupInbox(channel: RTCDataChannel): Inbox {
           reject(new DOMException("Aborted", "AbortError"));
         });
       }),
+    inject: (msg: InboxMessage) => {
+      if (closed) return;
+      if (waiter) {
+        waiter(msg);
+        waiter = null;
+      } else {
+        queue.push(msg);
+      }
+    },
     close: () => {
       closed = true;
       channel.onmessage = null;
@@ -305,6 +331,21 @@ function setupInbox(channel: RTCDataChannel): Inbox {
 
 function sendText(channel: RTCDataChannel, msg: Message): void {
   channel.send(marshal(msg));
+}
+
+// routeBufferedMessage feeds a message that arrived before the inbox was
+// set up into the inbox's queue or waiter, mimicking the onmessage path.
+function routeBufferedMessage(inbox: Inbox, data: ArrayBuffer | string): void {
+  if (typeof data === "string") {
+    try {
+      const msg = unmarshal(data);
+      inbox.inject({ ...msg, type: msg.type } as InboxMessage);
+    } catch {
+      // ignore malformed
+    }
+  } else if (data instanceof ArrayBuffer) {
+    inbox.inject({ type: "binary", data } as InboxMessage);
+  }
 }
 
 function waitForBufferLow(channel: RTCDataChannel, signal?: AbortSignal): Promise<void> {

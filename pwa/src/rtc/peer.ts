@@ -32,6 +32,10 @@ export class Peer {
   // then create the offer and gather.
   async createOffer(signal?: AbortSignal): Promise<RTCSessionDescriptionInit> {
     this.channel = this.pc.createDataChannel("jsi", { ordered: true });
+    this.channel.binaryType = "arraybuffer";
+    // Install a buffering handler immediately so messages arriving before
+    // the transfer engine sets up its inbox aren't lost.
+    this.installMessageBuffer();
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
     await this.waitForGather(signal);
@@ -45,6 +49,10 @@ export class Peer {
   ): Promise<RTCSessionDescriptionInit> {
     this.pc.ondatachannel = (e) => {
       this.channel = e.channel;
+      this.channel.binaryType = "arraybuffer";
+      // Install a buffering handler immediately so messages arriving before
+      // the transfer engine sets up its inbox aren't lost.
+      this.installMessageBuffer();
     };
     await this.pc.setRemoteDescription(offer);
     const answer = await this.pc.createAnswer();
@@ -141,6 +149,35 @@ export class Peer {
   close() {
     this.channel?.close();
     this.pc.close();
+  }
+
+  // --- Early message buffering ---
+  // Messages that arrive before the transfer engine sets up its inbox are
+  // buffered here. The transfer engine calls drainBufferedMessages() to
+  // claim them when it sets up its own onmessage handler.
+  private bufferedMessages: Array<{ data: ArrayBuffer | string }> = [];
+  private buffering = false;
+
+  private installMessageBuffer(): void {
+    if (!this.channel || this.buffering) return;
+    this.buffering = true;
+    this.channel.onmessage = (e: MessageEvent) => {
+      this.bufferedMessages.push({ data: e.data });
+    };
+  }
+
+  drainBufferedMessages(): Array<{ data: ArrayBuffer | string }> {
+    const msgs = this.bufferedMessages;
+    this.bufferedMessages = [];
+    this.buffering = false;
+    return msgs;
+  }
+
+  // Returns the channel after ensuring it's ready. The transfer engine
+  // should call drainBufferedMessages() AFTER setting up its own handler
+  // to process any messages that arrived during connection setup.
+  getChannel(): RTCDataChannel | null {
+    return this.channel;
   }
 
   private async waitForGather(signal?: AbortSignal): Promise<void> {

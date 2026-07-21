@@ -229,7 +229,7 @@ export function renderReceive(
           progressText = `file ${ev.fileId}: ${formatBytes(ev.bytesDone)} / ${formatBytes(ev.bytesTotal)}`;
           rerender();
         }
-      });
+      }, undefined, () => peer!.drainBufferedMessages());
 
       savedFiles = results;
       phase = "done";

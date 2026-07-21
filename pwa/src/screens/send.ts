@@ -250,7 +250,7 @@ export function renderSend(
           progressText = `file ${ev.fileId} done`;
           rerender();
         }
-      });
+      }, undefined, () => peer!.drainBufferedMessages());
 
       phase = "done";
       progressText = `Sent ${selectedFiles.length} file(s)`;
