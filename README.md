@@ -81,6 +81,13 @@ jsi receive 7KQX2A --externals full -o ~/downloads
 # → connects, transfers, hash-verified
 ```
 
+## Web app (PWA)
+
+A browser-based client is deployed at **https://jsi-web.treytorrez.workers.dev** —
+no install required. Open it on any device, pick Send or Receive, and transfer
+files to/from the CLI or another browser. Supports paste signaling (zero
+infrastructure) and worker signaling (internet, with TURN relay fallback).
+
 ### Interactive TUI
 
 ```sh
@@ -135,12 +142,14 @@ scripts/e2e-cli.sh        # 100 MiB through a local wrangler dev worker
 | M4 | QR signaling (QP/1) | ✅ |
 | M5 | TUI (Bubble Tea) | ✅ |
 | M6 | Polish / release | ✅ |
+| S4 | PWA (browser + mobile) | ◐ live at https://jsi-web.treytorrez.workers.dev |
 
 **What works:** paste/worker/QR signaling, direct P2P transfer with SHA-256
-integrity, the TUI, self-hostable worker with Durable Objects.
+integrity, the TUI, self-hostable worker with Durable Objects + TURN relay,
+PWA with send/receive flows (paste + worker modes).
 
-**Not yet built:** TURN relay (deferred — no card on file), PWA with camera QR
-scanning (S4), Yggdrasil network transport (S1–S3).
+**Not yet built:** QR camera scanning in the PWA (follow-up), Yggdrasil
+network transport (S1–S3).
 
 ## Documentation
 

@@ -13,11 +13,15 @@ wrong or incomplete, fix the spec file in the same commit and say so in the mess
 
 Spec v0.5. **All milestones complete** (tags `m1`–`m6`, release `v0.1.0`):
 worker SP/1 deployed at https://jsi-signal.treytorrez.workers.dev (M1.9/D17:
-per-session SessionDO + 20 s answer long-poll; STUN-only — TURN deferred by
-owner, no card on file; enable via scripts/deploy-worker.sh); Go core (m2);
-CLI (m3 — strace-proven e2e); QR signaling (m4 — 2-frame animated handshakes);
-TUI (m5 — Bubble Tea); polish (m6 — MIT license, CI, goreleaser, README).
-Stretch goals S1–S4 remain. Update this section as work continues.
+per-session SessionDO + 20 s answer long-poll; **TURN relay enabled** via
+Cloudflare Realtime — key ID in wrangler.jsonc, API token as secret); Go core
+(m2); CLI (m3 — strace-proven e2e, `--autocopy`, `--no-mdns`); QR signaling
+(m4 — 2-frame animated handshakes); TUI (m5 — Bubble Tea); polish (m6 — MIT
+license, CI, goreleaser, README). **PWA (S4) in progress**: scaffold +
+engines (peer/transfer/signal) + send/receive screens working; deployed
+pending. Cross-device transfer verified (CLI↔CLI over TURN relay, two
+devices on same Wi-Fi with AP isolation). Update this section as work
+continues.
 
 ## Layout
 
