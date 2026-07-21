@@ -17,6 +17,8 @@ import { renderAction, type AdvancedSettings } from "./screens/action";
 import { renderSend } from "./screens/send";
 import { renderReceive } from "./screens/receive";
 
+const VERSION = "0.1.0";
+
 type Screen = "privacy" | "action" | "send" | "receive";
 
 let currentScreen: Screen = "privacy";
@@ -36,6 +38,18 @@ function getPolicy(): Policy {
 }
 
 function render(): void {
+  // Inject the version badge once (persists across screen changes).
+  let badge = document.getElementById("version-badge");
+  if (!badge) {
+    badge = document.createElement("div");
+    badge.id = "version-badge";
+    badge.style.cssText =
+      "position:fixed;bottom:0.5rem;right:0.75rem;color:#455a64;" +
+      "font-size:0.7rem;font-family:monospace;pointer-events:none;z-index:9999";
+    badge.textContent = `jsi v${VERSION}`;
+    document.body.appendChild(badge);
+  }
+
   switch (currentScreen) {
     case "privacy":
       renderPrivacy(app, (choice: string) => {
