@@ -9,17 +9,22 @@ import {
   DefaultServerURL,
   ExternalsNone,
   ExternalsFull,
+  ExternalsFallback,
   SignalWorker,
+  SignalPaste,
+  SignalQR,
   type Policy,
 } from "./policy";
 import { renderPrivacy } from "./screens/privacy";
 import { renderAction, type AdvancedSettings } from "./screens/action";
 import { renderSend } from "./screens/send";
 import { renderReceive } from "./screens/receive";
+import { renderQRSend } from "./screens/qr-send";
+import { renderQRReceive } from "./screens/qr-receive";
 
 const VERSION = "0.1.0";
 
-type Screen = "privacy" | "action" | "send" | "receive";
+type Screen = "privacy" | "action" | "send" | "receive" | "qr-send" | "qr-receive";
 
 let currentScreen: Screen = "privacy";
 let preset = ExternalsNone;
@@ -68,14 +73,14 @@ function render(): void {
         () => { currentScreen = "send"; render(); },
         () => { currentScreen = "receive"; render(); },
         () => { currentScreen = "privacy"; render(); },
+        () => { currentScreen = "qr-send"; render(); },
+        () => { currentScreen = "qr-receive"; render(); },
         (s: AdvancedSettings) => { advanced = s; serverURL = s.server; },
       );
       break;
 
     case "send": {
       const pol = getPolicy();
-      // Apply mDNS/stun overrides to the peer config via module-level state
-      // (the send screen reads these through getICEServers).
       window.__jsiAdvanced = advanced;
       renderSend(app, pol, advanced.server, () => {
         currentScreen = "action";
@@ -88,12 +93,11 @@ function render(): void {
       let pol = getPolicy();
       let prefillToken: string | null = null;
 
-      // Deep link: #t=TOKEN forces full mode + pre-fills the token.
       if (deepLinkToken) {
         preset = ExternalsFull;
         pol = resolvePolicy(ExternalsFull, SignalWorker, "unset");
         prefillToken = deepLinkToken;
-        deepLinkToken = null; // consume
+        deepLinkToken = null;
       }
 
       window.__jsiAdvanced = advanced;
@@ -101,6 +105,26 @@ function render(): void {
         currentScreen = "action";
         render();
       }, prefillToken);
+      break;
+    }
+
+    case "qr-send": {
+      const pol = resolvePolicy(ExternalsNone, SignalQR, "off");
+      window.__jsiAdvanced = advanced;
+      renderQRSend(app, pol, advanced.server, () => {
+        currentScreen = "action";
+        render();
+      });
+      break;
+    }
+
+    case "qr-receive": {
+      const pol = resolvePolicy(ExternalsNone, SignalQR, "off");
+      window.__jsiAdvanced = advanced;
+      renderQRReceive(app, pol, advanced.server, () => {
+        currentScreen = "action";
+        render();
+      });
       break;
     }
   }

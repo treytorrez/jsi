@@ -19,6 +19,8 @@ export function renderAction(
   onSend: () => void,
   onReceive: () => void,
   onBack: () => void,
+  onQRSend?: () => void,
+  onQRReceive?: () => void,
   onAdvancedChange?: (s: AdvancedSettings) => void,
 ): void {
   let advanced: AdvancedSettings = { server, mdns: true, stun: true };
@@ -51,6 +53,15 @@ export function renderAction(
           <md-filled-button id="btn-send">↑ Send</md-filled-button>
           <md-outlined-button id="btn-recv">↓ Receive</md-outlined-button>
         </div>
+        ${policy.preset === "none" ? `
+          <div style="text-align:center;margin-top:1rem">
+            <md-outlined-button id="btn-qr-send" style="margin-right:0.5rem">📷 QR Send</md-outlined-button>
+            <md-outlined-button id="btn-qr-recv">📷 QR Receive</md-outlined-button>
+          </div>
+          <p style="text-align:center;color:#78909c;font-size:0.8rem;margin-top:0.5rem">
+            Scan QR codes between two devices — no typing, no paste, no servers.
+          </p>
+        ` : ""}
         <details>
           <summary>⚙ Advanced</summary>
           <div class="adv-field">
@@ -79,6 +90,8 @@ export function renderAction(
     container.querySelector("#btn-send")?.addEventListener("click", onSend);
     container.querySelector("#btn-recv")?.addEventListener("click", onReceive);
     container.querySelector("#btn-back")?.addEventListener("click", onBack);
+    container.querySelector("#btn-qr-send")?.addEventListener("click", () => onQRSend?.());
+    container.querySelector("#btn-qr-recv")?.addEventListener("click", () => onQRReceive?.());
 
     const serverInput = container.querySelector("#adv-server") as HTMLInputElement | null;
     serverInput?.addEventListener("change", () => {
