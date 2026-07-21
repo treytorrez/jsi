@@ -57,25 +57,55 @@ export class Peer {
     await this.pc.setRemoteDescription(desc);
   }
 
+  // waitOpen resolves when the data channel opens. Handles the race where
+  // ondatachannel hasn't fired yet (channel is null) by also listening for
+  // the "datachannel" event on the PeerConnection. Also rejects on channel
+  // error/close or connection failure so the caller doesn't hang forever.
   waitOpen(signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.channel && this.channel.readyState === "open") {
-        resolve();
-        return;
-      }
-      const onOpen = () => {
-        cleanup();
-        resolve();
-      };
-      const onAbort = () => {
-        cleanup();
-        reject(new DOMException("Aborted", "AbortError"));
-      };
       const cleanup = () => {
-        this.channel?.removeEventListener("open", onOpen);
+        this.channel?.removeEventListener("open", onChannelOpen);
+        this.channel?.removeEventListener("error", onChannelError);
+        this.channel?.removeEventListener("close", onChannelClose);
+        this.pc.removeEventListener("datachannel", onDataChannel);
+        this.pc.removeEventListener("connectionstatechange", onConnStateChange);
         signal?.removeEventListener("abort", onAbort);
       };
-      this.channel?.addEventListener("open", onOpen);
+
+      const onChannelOpen = () => { cleanup(); resolve(); };
+      const onChannelError = () => { cleanup(); reject(new Error("data channel error")); };
+      const onChannelClose = () => { cleanup(); reject(new Error("data channel closed")); };
+      const onAbort = () => { cleanup(); reject(new DOMException("Aborted", "AbortError")); };
+
+      const onDataChannel = (e: RTCDataChannelEvent) => {
+        this.channel = e.channel;
+        attachChannelListeners();
+      };
+
+      const onConnStateChange = () => {
+        if (this.pc.connectionState === "failed") {
+          cleanup();
+          reject(new Error("ICE connection failed"));
+        }
+      };
+
+      const attachChannelListeners = () => {
+        if (!this.channel) return;
+        if (this.channel.readyState === "open") {
+          cleanup();
+          resolve();
+          return;
+        }
+        this.channel.addEventListener("open", onChannelOpen);
+        this.channel.addEventListener("error", onChannelError);
+        this.channel.addEventListener("close", onChannelClose);
+      };
+
+      // Listen for datachannel in case it hasn't arrived yet (race fix).
+      this.pc.addEventListener("datachannel", onDataChannel);
+      this.pc.addEventListener("connectionstatechange", onConnStateChange);
+      // If channel already exists, attach listeners now.
+      attachChannelListeners();
       signal?.addEventListener("abort", onAbort);
     });
   }
@@ -115,8 +145,10 @@ export class Peer {
 
   private async waitForGather(signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    // Race gathering against a 3s timeout (D9: ship partial SDP on unreachable STUN).
-    const timeout = new Promise<void>((resolve) => setTimeout(resolve, 3000));
+    // Race gathering against a 10s timeout. TURN allocation can take 2-5s
+    // on top of STUN; 3s (the CLI default) was too short for the browser
+    // when TURN is in the ICE server list. 10s is generous but bounded.
+    const timeout = new Promise<void>((resolve) => setTimeout(resolve, 10000));
     await Promise.race([this.gatherComplete, timeout]);
   }
 }
