@@ -7,11 +7,12 @@ import "@material/web/button/outlined-button.js";
 import QRCode from "qrcode";
 
 import type { Policy } from "../policy";
-import { summarize, builtinSTUN } from "../policy";
+import { summarize, builtinSTUN, stripTURN, DefaultServerURL } from "../policy";
 import { Peer } from "../rtc/peer";
 import { receive as transferReceive, type TransferEvent } from "../rtc/transfer";
 import { encodePayload, decodePayload } from "../signal/paste";
 import { scanQR } from "../rtc/scanner";
+import { Worker } from "../signal/worker";
 
 declare global {
   interface Window { __jsiAdvanced?: { server: string; mdns: boolean; stun: boolean } }
@@ -128,7 +129,15 @@ export function renderQRReceive(
     stopScan();
     rerender();
     try {
-      const iceServers = builtinSTUN();
+      // Fetch ICE servers (STUN + TURN) from the worker — anonymous, no session.
+      const adv = window.__jsiAdvanced ?? { server: DefaultServerURL, stun: true };
+      let iceServers;
+      try {
+        const w = new Worker(adv.server);
+        iceServers = await w.iceServers();
+      } catch {
+        iceServers = adv.stun ? builtinSTUN() : [];
+      }
       peer = new Peer({ iceServers });
       const answer = await peer.createAnswer(offer);
       answerBlob = await encodePayload(answer);
