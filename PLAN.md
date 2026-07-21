@@ -358,10 +358,13 @@ done). Same `internal/*` stack; zero new protocol code.
 
 ### 7.7 PWA (`pwa/`) — S4
 
-Vanilla TypeScript + Vite (no framework). `RTCPeerConnection` non-trickle
-(`candidate === null` sentinel), `binaryType='arraybuffer'`, same TP/1. QR scan:
-native `BarcodeDetector` where available, jsQR fallback. Host: Workers Static
-Assets (D11). Mobile-first; installable (manifest + service worker).
+Vanilla TypeScript + Vite (no runtime framework). Styling: **Material Web
+Components** (Material 3, framework-free web components, tree-shaken by Vite —
+Material look without a JS framework's cost; user-requested). `RTCPeerConnection`
+non-trickle (`candidate === null` sentinel), `binaryType='arraybuffer'`, same
+TP/1. QR scan: native `BarcodeDetector` where available, jsQR fallback (D16).
+Host: Workers Static Assets (D11). Mobile-first; installable (manifest +
+service worker).
 
 ---
 
@@ -418,7 +421,7 @@ gathering`). `∥` = parallelizable with siblings after deps met. Every task's
 | M4.2 | QP/1 frame codec: split/join indexed frames, CRC-32 verify (payload codec + paste channel landed in M3.6) | M4.1 | round-trip + corruption + frame-loss tests |
 | M4.3 | Terminal animated-QR renderer (frame loop, adjustable fps/size) | M4.2 | scans reliably with a phone camera |
 | M4.4 | ~~SPIKE webcam capture~~ **PARKED** (D16): camera receive is PWA scope (S4); CLI offline receive is paste-first | — | no CLI camera dep on the critical path |
-| M4.5 | `signal.QR` implements `Channel`; CLI `--signal qr` both roles (receive via paste or QR display scan by PWA) | M4.3 | CLI↔CLI transfer with **network namespace isolation proving no CF traffic** |
+| M4.5 | `signal.QR` implements `Channel`; CLI `--signal qr` both roles (receive via paste or QR display scan by PWA) | M4.3 | CLI↔CLI transfer; zero-contact proof via the strace approach from M3.7 (namespace proof impossible: Pion omits loopback candidates) |
 | M4.6 | D15 policy wiring: `--externals` presets + per-axis overrides; `fallback` escalation to worker with explicit user notice; anonymous `/v1/ice` upfront fetch | M4.5 | zero CF contact provable in `none`; escalation notice shown in `fallback` |
 
 ### M5 — TUI ✦ *full interactive send/receive flow*
