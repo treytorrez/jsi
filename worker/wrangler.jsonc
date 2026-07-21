@@ -4,14 +4,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-07-18",
 
-  // M1.2: session KV (namespace created 2026-07-18, account 9ed31ff1…).
-  "kv_namespaces": [
-    {
-      "binding": "SESSIONS",
-      "id": "a75f52d876e74c1aa11161a865b4c47d",
-      "preview_id": "a75f52d876e74c1aa11161a865b4c47d"
-    }
-  ],
+  // M1.9 (D17): one SQLite-backed Durable Object per session token —
+  // strongly-consistent reads for the sub-90 s answer handshake (replaces KV).
+  "durable_objects": {
+    "bindings": [{ "name": "SESSION_DO", "class_name": "SessionDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionDO"] }],
 
   "vars": {
     "SESSION_TTL_SECONDS": "90",

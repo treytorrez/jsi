@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
+import { createExecutionContext, env, runDurableObjectAlarm, waitOnExecutionContext } from "cloudflare:test";
 import app from "../src";
 import type { Env } from "../src/env";
 
@@ -34,7 +34,7 @@ async function createSession(offer = OFFER, e?: Env): Promise<string> {
   return (await json(res)).token;
 }
 
-describe("SP/1 routes (M1.4–M1.6)", () => {
+describe("SP/1 routes (M1.4–M1.6, storage M1.9)", () => {
   it("GET /health → 200", async () => {
     const res = await get("/health");
     expect(res.status).toBe(200);
@@ -92,10 +92,27 @@ describe("SP/1 routes (M1.4–M1.6)", () => {
   });
 
   it("404 answer_not_ready while the answer is not posted yet", async () => {
-    const token = await createSession();
-    const res = await get(`/v1/sessions/${token}/answer`);
+    const quick: Env = { ...env, ANSWER_WAIT_MS: "300" }; // shrink the D17 long-poll for the test
+    const token = await createSession(OFFER, quick);
+    const start = Date.now();
+    const res = await get(`/v1/sessions/${token}/answer`, quick);
     expect(res.status).toBe(404);
     expect((await json(res)).error.code).toBe("answer_not_ready");
+    expect(Date.now() - start).toBeGreaterThanOrEqual(250); // the GET really long-polled
+  });
+
+  it("long-polls the answer server-side: a pending GET resolves 200 once posted (D17)", async () => {
+    const token = await createSession();
+    const start = Date.now();
+    const pending = get(`/v1/sessions/${token}/answer`);
+    await new Promise((r) => setTimeout(r, 400)); // let the long-poll engage
+    expect((await post(`/v1/sessions/${token}/answer`, { answer: ANSWER })).status).toBe(201);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    expect((await json(res)).answer).toEqual(ANSWER);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(350); // it waited for the answer…
+    expect(elapsed).toBeLessThan(5_000); // …but resolved promptly, not after the 20 s budget
   });
 
   it("409 answer_exists on a duplicate answer", async () => {
@@ -178,30 +195,14 @@ describe("SP/1 routes (M1.4–M1.6)", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
   });
 
-  it("entries expire after SESSION_TTL_SECONDS (TTL is the forget mechanism, D5)", async () => {
-    // Real KV enforces a 60 s minimum TTL, so expiry is exercised against a
-    // TTL-honoring stub; the store unit test asserts expirationTtl reaches KV.
-    const map = new Map<string, { value: string; expiresAt: number }>();
-    const kv = {
-      async get(key: string) {
-        const e = map.get(key);
-        if (!e) return null;
-        if (Date.now() >= e.expiresAt) {
-          map.delete(key);
-          return null;
-        }
-        return e.value;
-      },
-      async put(key: string, value: string, opts?: { expirationTtl?: number }) {
-        map.set(key, { value, expiresAt: opts?.expirationTtl ? Date.now() + opts.expirationTtl * 1000 : Infinity });
-      },
-    } as unknown as KVNamespace;
-    const shortLived: Env = { ...env, SESSIONS: kv, SESSION_TTL_SECONDS: "1" };
-
-    const token = await createSession(OFFER, shortLived);
-    expect((await get(`/v1/sessions/${token}/offer`, shortLived)).status).toBe(200);
-    await new Promise((r) => setTimeout(r, 1100));
-    const res = await get(`/v1/sessions/${token}/offer`, shortLived);
+  it("sessions expire via the DO alarm (TTL is the only forget mechanism, D5/D17)", async () => {
+    // The alarm fires at Date.now()+SESSION_TTL_SECONDS in prod; the test pool
+    // triggers it on demand via runDurableObjectAlarm. SessionDO unit tests
+    // cover the storage purge; this asserts the API surface reflects it.
+    const token = await createSession();
+    expect((await get(`/v1/sessions/${token}/offer`)).status).toBe(200);
+    expect(await runDurableObjectAlarm(env.SESSION_DO.getByName(token))).toBe(true);
+    const res = await get(`/v1/sessions/${token}/offer`);
     expect(res.status).toBe(404);
     expect((await json(res)).error.code).toBe("session_not_found");
   });

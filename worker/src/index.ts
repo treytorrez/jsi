@@ -1,6 +1,7 @@
 // JSI signaling worker — SP/1 (proto/SIGNALING.md). Stateless between
-// requests; KV TTL is the only forget mechanism (D5). SDP bodies are never
-// logged — observability is route + status only (SP/1 §Cross-cutting).
+// requests; per-session state lives in the SessionDO (M1.9, D17), whose alarm
+// is the only forget mechanism (D5). SDP bodies are never logged —
+// observability is route + status only (SP/1 §Cross-cutting).
 
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
@@ -42,3 +43,5 @@ app.notFound((c) => c.json({ error: { code: "not_found", message: "unknown route
 app.onError((_, c) => c.json({ error: { code: "internal", message: "unexpected error" } }, 500));
 
 export default app;
+// DO classes must be exported from the main entrypoint for the binding to resolve.
+export { SessionDO } from "./sessiondo";

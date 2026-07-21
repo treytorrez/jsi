@@ -124,9 +124,10 @@ pkg.go.dev, BC-UR papers. Full citations were gathered during planning; key ones
 | D10 | **SHA-256 per file is mandatory in TP/1 v1** (streamed during transfer, verified by receiver). | Cheap integrity from day one; foundation for S2 identity/integrity work. |
 | D11 | **PWA hosts on Workers Static Assets, not Pages.** | Cloudflare now steers new static sites to Workers Static Assets; same unlimited free bandwidth, one fewer product, config lives beside the signaling worker. |
 | D12 | M4 QR = **multi-frame animated by default** + copy-paste base64 fallback channel; camera scanning in the Go CLI via `pion/mediadevices` + `gozxing` is a **spike first** (cgo/platform risk). | QR density math (§2) makes single-frame infeasible; paste fallback guarantees M4 works even if camera deps fail. |
-| D13 | Polling (not WebSocket/Durable Objects) for the answer. 1 s interval, client-side. | Keeps the worker stateless and free-tier; DOs/WebSockets are a documented future optimization (long-poll variant noted in SP/1). |
+| D13 | Polling (not WebSocket/Durable Objects) for the answer. 1 s interval, client-side. | Keeps the worker stateless and free-tier; DOs/WebSockets are a documented future optimization (long-poll variant noted in SP/1). **Amended by D17.** |
 | D14 | mDNS host candidates enabled in Go clients (`SettingEngine.SetICEMulticastDNSMode`). | Privacy parity with browsers — hides LAN IPs from the remote peer's view of SDP. |
 | D15 | **External-services policy is user-controlled, default `none`.** Two orthogonal axes — signaling × transport — three presets plus per-axis overrides (C1-style mixing). `none`: QR signaling + host/STUN only, zero CF contact. `fallback`: QR first, escalate to worker on failure + TURN allowed (ICE-native last resort). `full`: worker signaling + TURN allowed (C2). Clients MUST display the established path (direct / STUN-assisted / TURN-relayed) and MUST announce any escalation to externals before using it. | User mandate: no accidental data through servers. STUN is the only always-permitted external (stateless, sees IPs only, never content). In `fallback`, `/v1/ice` is fetched upfront (anonymous, session-less) because adding TURN after a failed attempt would require a fresh QR scan cycle (ICE restart → new SDP exchange). |
+| D17 | **Session storage: one SQLite Durable Object per session token** (`SESSION_DO`, token = object name), replacing the M1.2 KV namespace. `GET …/answer` long-polls server-side ~20 s. DO alarm = TTL forget mechanism (D5 unchanged). SP/1 HTTP contract byte-identical; clients unchanged. | KV reads are edge-cached (incl. misses) and eventually consistent: under 1 s polling the answer key flapped 200→404→200 and the sender never saw it inside the 90 s TTL. A per-session DO is strongly consistent, and the server-side long-poll collapses the client's 1 s polling into a couple of requests. Amends D13. |
 
 Open question parked for M6: **license choice** (proposal says "open source from day
 one"; default candidate MIT — note Yggdrasil stretch introduces LGPLv3+exception
@@ -263,11 +264,14 @@ the default `none` channel; animated frames are the M4 UX upgrade.
 ### 7.1 Worker (`worker/`) — M1
 
 TypeScript, **Hono 4.x**, **wrangler.jsonc** (Wrangler v4; `compatibility_date` set
-at scaffold time), KV binding `SESSIONS`, rate-limit binding `POST_LIMITER`
-(namespace per wrangler docs, 60 s period). Vars: `SESSION_TTL_SECONDS=90`,
-`TURN_KEY_ID`. Secrets (via `wrangler secret put`, `.dev.vars` locally):
-`TURN_API_TOKEN`. Tests: **@cloudflare/vitest-pool-workers** (Vitest ^4.1, isolated
-per-test KV). Stateless; no logging of SDP bodies (only route+status observability).
+at scaffold time), Durable Object binding `SESSION_DO` (one SQLite-backed object
+per session token, M1.9/D17 — supersedes the M1.2 KV namespace), rate-limit
+binding `POST_LIMITER` (namespace per wrangler docs, 60 s period). Vars:
+`SESSION_TTL_SECONDS=90`, `TURN_KEY_ID`; optional `ANSWER_WAIT_MS` (answer
+long-poll budget, default 20000). Secrets (via `wrangler secret put`, `.dev.vars`
+locally): `TURN_API_TOKEN`. Tests: **@cloudflare/vitest-pool-workers** (Vitest
+^4.1, isolated per-test storage incl. DOs). Stateless; no logging of SDP bodies
+(only route+status observability).
 
 ### 7.2 `internal/peer` — M2
 
@@ -370,7 +374,8 @@ gathering`). `∥` = parallelizable with siblings after deps met. Every task's
 | M1.5 | `POST …/answer`, `GET …/answer` | M1.2 ∥ M1.4 | 409 on duplicate answer |
 | M1.6 | Errors `{error:{code,message}}`, CORS, rate-limit binding on POSTs | M1.3–1.5 | closed code set per SP/1; 429 path tested |
 | M1.7 | Vitest suite: full handshake flow, TTL behavior, validation | M1.4–1.6 | green in `worker/test/` |
-| M1.8 | Deploy: `npm run deploy`, `scripts/deploy-worker.sh` (kv create, secrets prompt), self-host README section | M1.7 | fresh CF account → working worker in ≤5 min |
+| M1.8 | Deploy: `npm run deploy`, `scripts/deploy-worker.sh` (secrets prompt, self-host README section) | M1.7, M1.9 | fresh CF account → working worker in ≤5 min |
+| M1.9 | Replace KV with per-session SessionDO (D17) + server-side answer long-poll | M1.7 | tsc clean, vitest green, `wrangler dev` smoke: full SP/1 flow + observed 20 s long-poll |
 
 ### M2 — Core Go library ✦ *direct WebRTC transfer between two Go processes*
 
