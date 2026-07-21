@@ -15,11 +15,10 @@ Spec v0.5. Landed: **M1 complete + deployed** (tags `m1`, `m3`) — worker SP/1 
 https://jsi-signal.treytorrez.workers.dev (M1.9/D17: per-session SessionDO +
 20 s answer long-poll after KV eventual-consistency broke live polling; STUN-only
 — TURN deferred by owner, no card on file; enable via scripts/deploy-worker.sh);
-**M2 complete** (tag `m2`); **M3 complete** (CLI + strace-proven e2e).
-M4 in flight: M4.1 (QR sizes measured, 400 B/EC-M confirmed) + M4.2 (frame
-codec) landed; M4.4 CLI-camera spike parked per D16 (camera receive = PWA/S4).
-Next: M4.3 (QR renderer), M4.5 (`--signal qr`). Update this section as
-milestones land.
+**M2 complete** (tag `m2`); **M3 complete** (CLI + strace-proven e2e);
+**M4 complete** (tag `m4` — measured 2-frame QR handshakes, internal/qr renderer,
+signal.QR, `--signal qr`; camera receive is PWA/S4 scope per D16).
+Next: M5 (TUI), M6 (polish/release). Update this section as milestones land.
 
 ## Layout
 
