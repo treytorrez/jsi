@@ -110,6 +110,24 @@ export function renderReceive(
     container.querySelector("#btn-save")?.addEventListener("click", saveFiles);
     container.querySelector("#btn-copy")?.addEventListener("click", () => copyToClipboard(displayText, container));
     container.querySelector("#btn-copy-fallback")?.addEventListener("click", () => selectElement(container, "#answer-blob"));
+    // Enter (without Shift) in the offer textarea submits.
+    const offerInput = container.querySelector("#offer-input") as HTMLElement | null;
+    offerInput?.addEventListener("keydown", (e: Event) => {
+      const ke = e as KeyboardEvent;
+      if (ke.key === "Enter" && !ke.shiftKey) {
+        ke.preventDefault();
+        startJoin();
+      }
+    });
+    // Enter in the token input submits.
+    const tokenInput = container.querySelector("#token-input") as HTMLElement | null;
+    tokenInput?.addEventListener("keydown", (e: Event) => {
+      const ke = e as KeyboardEvent;
+      if (ke.key === "Enter") {
+        ke.preventDefault();
+        startJoin();
+      }
+    });
   };
 
   async function startJoin() {

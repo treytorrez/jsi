@@ -42,12 +42,13 @@ type app struct {
 	stdout io.Writer
 	stderr io.Writer
 
-	verbose bool
-	yes     bool
-	server  string
-	pwaURL  string
-	policy  policy.Policy
-	noSTUN  bool
+	verbose  bool
+	yes      bool
+	server   string
+	pwaURL   string
+	policy   policy.Policy
+	noSTUN   bool
+	autocopy bool
 }
 
 func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) (bool, error) {
@@ -99,6 +100,7 @@ type flagValues struct {
 	pwaURL    string
 	noMDNS    bool
 	noSTUN    bool
+	autocopy  bool
 	yes       bool
 	verbose   bool
 }
@@ -115,6 +117,7 @@ func newFlagSet(name string, stderr io.Writer) (*flag.FlagSet, *flagValues) {
 	fs.StringVar(&fv.pwaURL, "pwa-url", "", "base URL for the send-side QR payload (default: bare token)")
 	fs.BoolVar(&fv.noMDNS, "no-mdns", false, "disable mDNS host candidates (escape hatch for networks where multicast is broken)")
 	fs.BoolVar(&fv.noSTUN, "no-stun", false, "host candidates only — no STUN requests (zero external contact; best for offline LANs)")
+	fs.BoolVar(&fv.autocopy, "autocopy", false, "copy paste blobs to the clipboard automatically (macOS/Linux/Windows)")
 	fs.BoolVar(&fv.yes, "yes", false, "accept the transfer without prompting")
 	fs.BoolVar(&fv.yes, "y", false, "shorthand for --yes")
 	fs.BoolVar(&fv.verbose, "v", false, "verbose errors")

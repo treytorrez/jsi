@@ -16,6 +16,8 @@ import (
 	"github.com/treyt/jsi/internal/policy"
 	"github.com/treyt/jsi/internal/signal"
 	"github.com/treyt/jsi/internal/transfer"
+
+	"github.com/atotto/clipboard"
 )
 
 // send runs `jsi send <file...>` (M3.1): resolve the D15 policy → create
@@ -47,6 +49,7 @@ func (a *app) send(ctx context.Context, args []string) (bool, error) {
 	}
 	a.policy, a.server, a.pwaURL = pol, fv.server, fv.pwaURL
 	a.noSTUN = fv.noSTUN
+	a.autocopy = fv.autocopy
 
 	// D15 transparency: announce external contact BEFORE signaling.
 	eprintln(a.stderr, pol.Summary(a.server))
@@ -130,6 +133,15 @@ func (a *app) senderHandshake(ctx context.Context, offer webrtc.SessionDescripti
 		_, w, err := p.Announce(ctx, offer) // writes the offer blob line to stdout
 		if err != nil {
 			return webrtc.SessionDescription{}, err
+		}
+		if a.autocopy {
+			if blob, err := signal.EncodePayload(offer); err == nil {
+				if cerr := clipboard.WriteAll(blob); cerr != nil {
+					eprintf(a.stderr, "(--autocopy: clipboard unavailable: %v)\n", cerr)
+				} else {
+					eprintln(a.stderr, "(--autocopy: offer blob copied to clipboard)")
+				}
+			}
 		}
 		wait = w
 	}

@@ -117,6 +117,15 @@ export function renderSend(
     container.querySelector("#btn-connect")?.addEventListener("click", connectWithAnswer);
     container.querySelector("#btn-copy")?.addEventListener("click", () => copyToClipboard(displayText, container));
     container.querySelector("#btn-copy-fallback")?.addEventListener("click", () => selectElement(container, "#offer-blob"));
+    // Enter (without Shift) in the answer textarea submits.
+    const answerInput = container.querySelector("#answer-input") as HTMLElement | null;
+    answerInput?.addEventListener("keydown", (e: Event) => {
+      const ke = e as KeyboardEvent;
+      if (ke.key === "Enter" && !ke.shiftKey) {
+        ke.preventDefault();
+        connectWithAnswer();
+      }
+    });
   };
 
   async function startOffer() {

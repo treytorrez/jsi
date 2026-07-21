@@ -14,6 +14,8 @@ import (
 	"github.com/treyt/jsi/internal/protocol"
 	"github.com/treyt/jsi/internal/signal"
 	"github.com/treyt/jsi/internal/transfer"
+
+	"github.com/atotto/clipboard"
 )
 
 // receive runs `jsi receive [token]` (M3.2): resolve the D15 policy →
@@ -42,6 +44,7 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 	}
 	a.policy, a.server, a.yes = pol, fv.server, fv.yes
 	a.noSTUN = fv.noSTUN
+	a.autocopy = fv.autocopy
 
 	tok := ""
 	if len(pos) == 1 {
@@ -82,6 +85,15 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 			stopDisplay()
 		}
 		return a.verbose, err
+	}
+	if a.autocopy && pol.Signal != policy.SignalWorker {
+		if blob, err := signal.EncodePayload(answer); err == nil {
+			if cerr := clipboard.WriteAll(blob); cerr != nil {
+				eprintf(a.stderr, "(--autocopy: clipboard unavailable: %v)\n", cerr)
+			} else {
+				eprintln(a.stderr, "(--autocopy: answer blob copied to clipboard)")
+			}
+		}
 	}
 	if pol.Signal == policy.SignalPaste {
 		eprintln(a.stderr, "send the answer blob back to the sender; connecting…")
