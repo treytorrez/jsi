@@ -14,7 +14,7 @@ wrong or incomplete, fix the spec file in the same commit and say so in the mess
 Spec v0.5. Landed: **M1 complete + deployed** (tags `m1`, `m3`) — worker SP/1 at
 https://jsi-signal.treytorrez.workers.dev (M1.9/D17: per-session SessionDO +
 20 s answer long-poll after KV eventual-consistency broke live polling; STUN-only
-until the user adds a TURN key via dashboard, see scripts/deploy-worker.sh);
+— TURN deferred by owner, no card on file; enable via scripts/deploy-worker.sh);
 **M2 complete** (tag `m2`); **M3 complete** (CLI + strace-proven e2e).
 M4 in flight: M4.1 (QR sizes measured, 400 B/EC-M confirmed) + M4.2 (frame
 codec) landed; M4.4 CLI-camera spike parked per D16 (camera receive = PWA/S4).

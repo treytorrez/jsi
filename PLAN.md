@@ -134,6 +134,13 @@ Open question parked for M6: **license choice** (proposal says "open source from
 one"; default candidate MIT — note Yggdrasil stretch introduces LGPLv3+exception
 code, which is compatible but must be attributed).
 
+Deployment note (2026-07, owner decision): **TURN key not provisioned** — payment
+method deferred (no card on file). The worker runs **STUN-only**: direct P2P
+works for ~90% of networks; symmetric-NAT / corporate-firewall pairs fail fast
+with a clear error instead of relaying. Enable later via
+`scripts/deploy-worker.sh` (Cloudflare Realtime TURN, 1 TB free tier) or coturn
+for self-hosters (§11).
+
 ---
 
 ## 4. Architecture
