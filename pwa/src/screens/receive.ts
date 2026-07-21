@@ -11,6 +11,10 @@ import { receive as transferReceive, type TransferEvent } from "../rtc/transfer"
 import { Worker } from "../signal/worker";
 import { encodePayload, decodePayload } from "../signal/paste";
 
+declare global {
+  interface Window { __jsiAdvanced?: { server: string; mdns: boolean; stun: boolean } }
+}
+
 type Phase = "input" | "answer" | "connecting" | "transferring" | "done" | "error";
 
 export function renderReceive(
@@ -18,6 +22,7 @@ export function renderReceive(
   policy: Policy,
   serverURL: string,
   onBack: () => void,
+  prefillToken: string | null = null,
 ): void {
   let phase: Phase = "input";
   let peer: Peer | null = null;
@@ -60,6 +65,7 @@ export function renderReceive(
           ? `
             <p>Enter the sender's token:</p>
             <input type="text" id="token-input" placeholder="6-character token" maxlength="6"
+              value="${prefillToken ?? ""}"
               style="width:100%;font-size:1.5rem;text-align:center;text-transform:uppercase;
               background:#0d1117;border:1px solid #304050;border-radius:8px;color:#e0e0e0;
               padding:0.75rem;box-sizing:border-box" />
@@ -251,8 +257,9 @@ export function renderReceive(
 }
 
 async function getICEServers(policy: Policy, serverURL: string): Promise<RTCIceServer[]> {
+  const adv = window.__jsiAdvanced ?? { server: serverURL, mdns: true, stun: true };
   if (!policy.fetchICE) {
-    return builtinSTUN();
+    return adv.stun ? builtinSTUN() : [];
   }
   const w = new Worker(serverURL);
   let servers = await w.iceServers();

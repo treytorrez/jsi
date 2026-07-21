@@ -4,6 +4,7 @@
 
 export interface PeerConfig {
   iceServers: RTCIceServer[];
+  enableMDNS?: boolean;
 }
 
 export class Peer {
@@ -12,6 +13,9 @@ export class Peer {
   private gatherComplete: Promise<void>;
 
   constructor(cfg: PeerConfig) {
+    // mDNS is browser-controlled: the browser decides based on its settings.
+    // We pass the iceServers; mDNS host candidates are always gathered by the
+    // browser. The enableMDNS flag is informational — the browser handles it.
     this.pc = new RTCPeerConnection({ iceServers: cfg.iceServers });
     this.gatherComplete = new Promise((resolve) => {
       const check = () => {

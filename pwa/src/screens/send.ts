@@ -3,7 +3,8 @@
 
 import "@material/web/button/filled-button.js";
 import "@material/web/button/outlined-button.js";
-import "@material/web/progress/linear-progress.js";
+
+import QRCode from "qrcode";
 
 import type { Policy } from "../policy";
 import { SignalPaste, SignalWorker, summarize, builtinSTUN, stripTURN } from "../policy";
@@ -11,6 +12,11 @@ import { Peer } from "../rtc/peer";
 import { send as transferSend, type SendFile, type TransferEvent } from "../rtc/transfer";
 import { Worker } from "../signal/worker";
 import { encodePayload, decodePayload } from "../signal/paste";
+
+// Set by main.ts from the Advanced settings panel.
+declare global {
+  interface Window { __jsiAdvanced?: { server: string; mdns: boolean; stun: boolean } }
+}
 
 type Phase = "pick" | "offer" | "answer" | "connecting" | "transferring" | "done" | "error";
 
@@ -41,6 +47,22 @@ export function renderSend(
                     word-break: break-all; font-family: monospace; font-size: 0.8rem; color: #c8e6c9;
                     max-height: 150px; overflow-y: auto; margin-bottom: 1rem; }
         .token-display { font-size: 2rem; font-weight: bold; color: #fff176; text-align: center; padding: 1rem; }
+        .worker-display { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin: 1rem 0; }
+        .worker-display:has(.token-area) { flex-direction: row; justify-content: center; flex-wrap: wrap; }
+        .qr-area { flex-shrink: 0; }
+        .qr-area canvas { border-radius: 12px; background: #fff; padding: 8px; }
+        .token-area { text-align: center; min-width: 200px; }
+        .token-large {
+          font-size: 3rem; font-weight: 700; color: #fff176; letter-spacing: 0.15em;
+          font-family: 'Roboto Mono', monospace; padding: 0.5rem 1rem;
+          background: #0d1117; border-radius: 12px; display: inline-block; margin-bottom: 0.5rem;
+        }
+        .waiting-text { color: #90a4ae; font-size: 0.85rem; margin: 0.5rem 0; }
+        .hint-text { color: #78909c; font-size: 0.8rem; font-family: monospace;
+                     background: #0d1117; padding: 0.5rem; border-radius: 8px; display: inline-block; }
+        @media (max-width: 600px) {
+          .worker-display:has(.token-area) { flex-direction: column; }
+        }
         .progress-text { color: #81c784; margin: 0.5rem 0; }
         .error { color: #ef5350; margin: 0.5rem 0; }
         .actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
@@ -73,8 +95,26 @@ export function renderSend(
       case "offer":
         return `
           <p>Share this with the receiver:</p>
-          ${token ? `<div class="token-display">${token}</div><p style="text-align:center;color:#90a4ae">waiting for receiver…</p>` : ""}
-          ${displayText ? `<div class="blob-box" id="offer-blob">${escapeHtml(displayText)}</div><div style="display:flex;gap:0.5rem"><md-filled-button id="btn-copy">Copy to clipboard</md-filled-button><md-outlined-button id="btn-copy-fallback">Select all</md-outlined-button></div><p style="color:#90a4ae;margin-top:0.5rem">Copy this blob and send it to the receiver via any channel.</p>` : ""}
+          ${token ? `
+            <div class="worker-display">
+              <div class="qr-area"><canvas id="qr-canvas"></canvas></div>
+              <div class="token-area">
+                <div class="token-large">${token}</div>
+                <p class="waiting-text">Scan with a phone camera to open the PWA in receive mode,
+                or enter the code manually:</p>
+                <p class="hint-text">jsi receive ${token} --externals full</p>
+                <p class="waiting-text">waiting for receiver…</p>
+              </div>
+            </div>
+          ` : ""}
+          ${displayText ? `
+            <div class="blob-box" id="offer-blob">${escapeHtml(displayText)}</div>
+            <div style="display:flex;gap:0.5rem">
+              <md-filled-button id="btn-copy">Copy to clipboard</md-filled-button>
+              <md-outlined-button id="btn-copy-fallback">Select all</md-outlined-button>
+            </div>
+            <p style="color:#90a4ae;margin-top:0.5rem">Copy this blob and send it to the receiver via any channel.</p>
+          ` : ""}
         `;
       case "answer":
         return `
@@ -126,6 +166,13 @@ export function renderSend(
         connectWithAnswer();
       }
     });
+    // Render QR code to canvas (worker mode deep-link).
+    const canvas = container.querySelector("#qr-canvas") as HTMLCanvasElement | null;
+    if (canvas && token) {
+      const url = `${window.location.origin}/#t=${token}`;
+      QRCode.toCanvas(canvas, url, { width: 200, margin: 1, color: { dark: "#1a1a2e", light: "#ffffff" } })
+        .catch(() => {});
+    }
   };
 
   async function startOffer() {
@@ -134,7 +181,8 @@ export function renderSend(
     rerender();
     try {
       const iceServers = await getICEServers(policy, serverURL);
-      peer = new Peer({ iceServers });
+      const adv = window.__jsiAdvanced ?? { mdns: true };
+      peer = new Peer({ iceServers, enableMDNS: adv.mdns });
       offerSDP = await peer.createOffer();
 
       if (policy.signal === SignalWorker) {
@@ -220,8 +268,9 @@ export function renderSend(
 // --- Shared helpers ---
 
 async function getICEServers(policy: Policy, serverURL: string): Promise<RTCIceServer[]> {
+  const adv = window.__jsiAdvanced ?? { server: serverURL, mdns: true, stun: true };
   if (!policy.fetchICE) {
-    return builtinSTUN();
+    return adv.stun ? builtinSTUN() : [];
   }
   const w = new Worker(serverURL);
   let servers = await w.iceServers();
