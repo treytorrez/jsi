@@ -20,6 +20,21 @@ declare global {
 
 type Phase = "pick" | "offer-qr" | "scanning-answer" | "connecting" | "transferring" | "done" | "error";
 
+async function getICEServers(policy: Policy, serverURL: string): Promise<RTCIceServer[]> {
+  if (!policy.fetchICE) {
+    // No Servers mode: STUN only, no worker contact. Will fail on AP-isolated
+    // networks — that's the honest tradeoff of zero servers.
+    return builtinSTUN();
+  }
+  // Best Effort / Full: fetch STUN + TURN from the worker (anonymous, no session).
+  const w = new Worker(serverURL);
+  let servers = await w.iceServers();
+  if (!policy.relay) {
+    servers = stripTURN(servers);
+  }
+  return servers;
+}
+
 export function renderQRSend(
   container: HTMLElement,
   policy: Policy,
@@ -128,17 +143,7 @@ export function renderQRSend(
     progressText = "Creating offer…";
     rerender();
     try {
-      // Fetch ICE servers (STUN + TURN) from the worker — anonymous, no session.
-      // The SDP exchange stays QR-only; TURN is just the transport fallback
-      // for networks where direct P2P fails (AP isolation, blocked multicast).
-      const adv = window.__jsiAdvanced ?? { server: DefaultServerURL, stun: true };
-      let iceServers;
-      try {
-        const w = new Worker(adv.server);
-        iceServers = await w.iceServers();
-      } catch {
-        iceServers = adv.stun ? builtinSTUN() : [];
-      }
+      const iceServers = await getICEServers(policy, serverURL);
       peer = new Peer({ iceServers });
       const offer = await peer.createOffer();
       offerBlob = await encodePayload(offer);
@@ -153,7 +158,7 @@ export function renderQRSend(
       rerender();
     } catch (e) {
       phase = "error";
-      errorText = e instanceof Error ? e.message : String(e);
+      errorText = formatError(e, policy);
       rerender();
     }
   }
@@ -217,7 +222,7 @@ export function renderQRSend(
       rerender();
     } catch (e) {
       phase = "error";
-      errorText = e instanceof Error ? e.message : String(e);
+      errorText = formatError(e, policy);
       rerender();
     }
   }
@@ -236,4 +241,12 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
     c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;",
   );
+}
+
+function formatError(e: unknown, policy: Policy): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (!policy.fetchICE && (msg.includes("ICE") || msg.includes("connection") || msg.includes("failed"))) {
+    return `${msg}\n\nNo servers were contacted (No Servers mode). If both devices are on a network that blocks direct connections (e.g., Wi-Fi with AP isolation), try again with Best Effort mode — it uses a TURN relay as a fallback without storing your data.`;
+  }
+  return msg;
 }

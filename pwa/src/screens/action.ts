@@ -53,7 +53,7 @@ export function renderAction(
           <md-filled-button id="btn-send">↑ Send</md-filled-button>
           <md-outlined-button id="btn-recv">↓ Receive</md-outlined-button>
         </div>
-        ${policy.preset === "none" ? `
+        ${(policy.preset === "none" || policy.preset === "fallback") ? `
           <div style="text-align:center;margin-top:1rem">
             <md-outlined-button id="btn-qr-send" style="margin-right:0.5rem">📷 QR Send</md-outlined-button>
             <md-outlined-button id="btn-qr-recv">📷 QR Receive</md-outlined-button>

@@ -109,7 +109,7 @@ function render(): void {
     }
 
     case "qr-send": {
-      const pol = resolvePolicy(ExternalsNone, SignalQR, "off");
+      const pol = resolvePolicy(preset, SignalQR, preset === ExternalsFallback ? "unset" : "off");
       window.__jsiAdvanced = advanced;
       renderQRSend(app, pol, advanced.server, () => {
         currentScreen = "action";
@@ -119,7 +119,7 @@ function render(): void {
     }
 
     case "qr-receive": {
-      const pol = resolvePolicy(ExternalsNone, SignalQR, "off");
+      const pol = resolvePolicy(preset, SignalQR, preset === ExternalsFallback ? "unset" : "off");
       window.__jsiAdvanced = advanced;
       renderQRReceive(app, pol, advanced.server, () => {
         currentScreen = "action";
