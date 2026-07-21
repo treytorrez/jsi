@@ -1,0 +1,10 @@
+{
+  "name": "JSI — Just Send It",
+  "short_name": "JSI",
+  "description": "Peer-to-peer file transfer over WebRTC. No accounts, no servers touch your files.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "icons": []
+}

@@ -1,0 +1,8 @@
+{
+  // JSI PWA — Workers Static Assets (D11). Independent deploy from the signaling worker.
+  "name": "jsi-web",
+  "compatibility_date": "2026-07-18",
+  "assets": {
+    "directory": "./dist"
+  }
+}
