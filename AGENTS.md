@@ -11,13 +11,15 @@ wrong or incomplete, fix the spec file in the same commit and say so in the mess
 
 ## Status
 
-Spec v0.5. Landed: M1.1–M1.7 + M1.9 (worker SP/1, 27 tests green — per-session
-SessionDO storage + 20 s answer long-poll, D17; only M1.8 deploy remains, needs
-the user's CF auth); M2.1–M2.8 (**tag `m2`** — Go core: token, protocol, peer,
-signal worker+paste, transfer, loopback + live-worker e2e); M3.1–M3.7 (CLI: D15
-policy engine, paste+worker flows, QR token, progress, exit codes, strace-proven
-zero-contact e2e). Next: M4 (QR signaling) or M1.8.
-Update this section as milestones land.
+Spec v0.5. Landed: **M1 complete + deployed** (tags `m1`, `m3`) — worker SP/1 at
+https://jsi-signal.treytorrez.workers.dev (M1.9/D17: per-session SessionDO +
+20 s answer long-poll after KV eventual-consistency broke live polling; STUN-only
+until the user adds a TURN key via dashboard, see scripts/deploy-worker.sh);
+**M2 complete** (tag `m2`); **M3 complete** (CLI + strace-proven e2e).
+M4 in flight: M4.1 (QR sizes measured, 400 B/EC-M confirmed) + M4.2 (frame
+codec) landed; M4.4 CLI-camera spike parked per D16 (camera receive = PWA/S4).
+Next: M4.3 (QR renderer), M4.5 (`--signal qr`). Update this section as
+milestones land.
 
 ## Layout
 
