@@ -139,6 +139,7 @@ func (a *app) senderHandshake(ctx context.Context, offer webrtc.SessionDescripti
 	cancel()
 	switch {
 	case err == nil:
+		eprintln(a.stderr, "answer received — connecting…")
 		return answer, nil
 	case ctx.Err() != nil: // SIGINT, not the paste timeout
 		return webrtc.SessionDescription{}, ctx.Err()
