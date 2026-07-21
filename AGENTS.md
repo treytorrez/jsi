@@ -17,8 +17,10 @@ https://jsi-signal.treytorrez.workers.dev (M1.9/D17: per-session SessionDO +
 — TURN deferred by owner, no card on file; enable via scripts/deploy-worker.sh);
 **M2 complete** (tag `m2`); **M3 complete** (CLI + strace-proven e2e);
 **M4 complete** (tag `m4` — measured 2-frame QR handshakes, internal/qr renderer,
-signal.QR, `--signal qr`; camera receive is PWA/S4 scope per D16).
-Next: M5 (TUI), M6 (polish/release). Update this section as milestones land.
+signal.QR, `--signal qr`; camera receive is PWA/S4 scope per D16);
+**M5 complete** (tag `m5` — Bubble Tea TUI with send/receive/settings/help,
+all three signaling modes, D15 policy + transparency, progress bars).
+Next: M6 (polish/release). Update this section as milestones land.
 
 ## Layout
 
