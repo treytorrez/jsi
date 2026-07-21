@@ -106,7 +106,7 @@ func newFlagSet(name string, stderr io.Writer) (*flag.FlagSet, *flagValues) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.StringVar(&fv.externals, "externals", ExternalsNone, "external-services policy: none|fallback|full")
-	fs.StringVar(&fv.signal, "signal", "", "signaling channel: paste|worker (default: from --externals preset)")
+	fs.StringVar(&fv.signal, "signal", "", "signaling channel: paste|qr|worker (default: from --externals preset)")
 	fs.BoolVar(&fv.relay, "relay", false, "allow TURN relay (default: from preset)")
 	fs.BoolVar(&fv.noRelay, "no-relay", false, "forbid TURN relay (default: from preset)")
 	fs.StringVar(&fv.server, "server", DefaultServerURL, "signaling worker URL")

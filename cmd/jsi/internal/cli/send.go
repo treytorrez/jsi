@@ -106,19 +106,31 @@ func (a *app) iceServers(ctx context.Context) ([]webrtc.ICEServer, error) {
 }
 
 // senderHandshake announces the offer and waits for the answer on the
-// policy's signaling axis: worker (token + QR) or paste (blob on stdout).
-// The fallback preset escalates paste → worker on any failure before the
-// SDP exchange completes (error or the QP/1 120 s timeout), announcing the
-// escalation first (D15 transparency).
+// policy's signaling axis: worker (token + QR) or offline (paste blob / QR
+// frames). The fallback preset escalates offline → worker on any failure
+// before the SDP exchange completes (error or the QP/1 120 s timeout),
+// announcing the escalation first (D15 transparency).
 func (a *app) senderHandshake(ctx context.Context, offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
 	if a.policy.Signal == SignalWorker {
 		return a.senderWorker(ctx, offer)
 	}
-	eprintln(a.stderr, "paste this offer blob to the receiver (chat, email — any channel):")
-	p := &signal.Paste{In: a.stdin, Out: a.stdout}
-	_, wait, err := p.Announce(ctx, offer) // writes the offer blob line to stdout
-	if err != nil {
-		return webrtc.SessionDescription{}, err
+	var wait func(context.Context) (webrtc.SessionDescription, error)
+	if a.policy.Signal == SignalQR {
+		eprintln(a.stderr, "showing the offer as animated QR — point the receiver's camera at the screen (blob is also on stdout for pasting):")
+		q := &signal.QR{Out: a.stderr, In: a.stdin, BlobOut: a.stdout}
+		_, w, err := q.Announce(ctx, offer)
+		if err != nil {
+			return webrtc.SessionDescription{}, err
+		}
+		wait = w
+	} else {
+		eprintln(a.stderr, "paste this offer blob to the receiver (chat, email — any channel):")
+		p := &signal.Paste{In: a.stdin, Out: a.stdout}
+		_, w, err := p.Announce(ctx, offer) // writes the offer blob line to stdout
+		if err != nil {
+			return webrtc.SessionDescription{}, err
+		}
+		wait = w
 	}
 	eprintln(a.stderr, "paste the receiver's answer blob:")
 	waitCtx, cancel := context.WithTimeout(ctx, pasteTimeout)
@@ -133,7 +145,7 @@ func (a *app) senderHandshake(ctx context.Context, offer webrtc.SessionDescripti
 		eprintln(a.stderr, "offline signaling failed — using Cloudflare signaling server (--externals fallback)")
 		return a.senderWorker(ctx, offer)
 	case errors.Is(err, context.DeadlineExceeded):
-		eprintf(a.stderr, "paste timed out after %s — re-run both sides and paste promptly, or use --externals fallback|full.\n", pasteTimeout)
+		eprintf(a.stderr, "offline signaling timed out after %s — re-run both sides and paste promptly, or use --externals fallback|full.\n", pasteTimeout)
 		return webrtc.SessionDescription{}, fmt.Errorf("%w: no answer pasted within %s", signal.ErrTimeout, pasteTimeout)
 	default:
 		return webrtc.SessionDescription{}, err

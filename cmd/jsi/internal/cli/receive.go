@@ -69,14 +69,33 @@ func (a *app) receive(ctx context.Context, args []string) (bool, error) {
 		return a.verbose, err
 	}
 	defer func() { _ = conn.Close() }()
-	if err := respond(ctx, answer); err != nil { // paste: writes the answer blob line to stdout
+	respondCtx := ctx
+	var stopDisplay context.CancelFunc
+	if pol.Signal == SignalQR {
+		// The answer frames animate until the channel opens — then the
+		// display stops so it can't fight the progress renderer (stderr).
+		respondCtx, stopDisplay = context.WithCancel(ctx)
+	}
+	if err := respond(respondCtx, answer); err != nil {
+		if stopDisplay != nil {
+			stopDisplay()
+		}
 		return a.verbose, err
 	}
 	if pol.Signal == SignalPaste {
 		eprintln(a.stderr, "send the answer blob back to the sender; connecting…")
 	}
+	if pol.Signal == SignalQR {
+		eprintln(a.stderr, "answer shown as QR (blob also on stdout); connecting…")
+	}
 	if err := conn.WaitOpen(ctx); err != nil {
+		if stopDisplay != nil {
+			stopDisplay()
+		}
 		return a.verbose, err
+	}
+	if stopDisplay != nil {
+		stopDisplay()
 	}
 	a.printPath(ctx, conn)
 
@@ -103,10 +122,19 @@ func (a *app) receiverOffer(ctx context.Context, tok string) (webrtc.SessionDesc
 	if a.policy.Signal == SignalWorker {
 		return a.receiverWorker(ctx, tok)
 	}
-	eprintln(a.stderr, "paste the sender's offer blob:")
-	p := &signal.Paste{In: a.stdin, Out: a.stdout}
+	var offer webrtc.SessionDescription
+	var respond func(context.Context, webrtc.SessionDescription) error
+	var err error
 	joinCtx, cancel := context.WithTimeout(ctx, pasteTimeout)
-	offer, respond, err := p.Join(joinCtx, "")
+	if a.policy.Signal == SignalQR {
+		eprintln(a.stderr, "paste the sender's offer blob (or scan their QR with the JSI web app):")
+		q := &signal.QR{Out: a.stderr, In: a.stdin, BlobOut: a.stdout}
+		offer, respond, err = q.Join(joinCtx, "")
+	} else {
+		eprintln(a.stderr, "paste the sender's offer blob:")
+		p := &signal.Paste{In: a.stdin, Out: a.stdout}
+		offer, respond, err = p.Join(joinCtx, "")
+	}
 	cancel()
 	switch {
 	case err == nil:

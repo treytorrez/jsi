@@ -19,6 +19,7 @@ const (
 const (
 	SignalPaste  = "paste"
 	SignalWorker = "worker"
+	SignalQR     = "qr"
 )
 
 // pasteTimeout is the QP/1 offline-signaling timeout per direction
@@ -76,10 +77,10 @@ func ResolvePolicy(preset, signalOverride string, relay RelaySetting) (Policy, e
 
 	switch signalOverride {
 	case "":
-	case SignalPaste, SignalWorker:
+	case SignalPaste, SignalWorker, SignalQR:
 		p.Signal = signalOverride
 	default:
-		return Policy{}, fmt.Errorf("invalid --signal %q (want paste|worker)", signalOverride)
+		return Policy{}, fmt.Errorf("invalid --signal %q (want paste|qr|worker)", signalOverride)
 	}
 
 	switch relay {
@@ -91,8 +92,8 @@ func ResolvePolicy(preset, signalOverride string, relay RelaySetting) (Policy, e
 	}
 
 	// Escalation is the fallback preset's defining behavior and applies only
-	// while paste is the first channel.
-	p.Escalate = preset == ExternalsFallback && p.Signal == SignalPaste
+	// while an offline channel (paste or QR) is tried first.
+	p.Escalate = preset == ExternalsFallback && p.Signal != SignalWorker
 
 	// TURN credentials must exist before offer creation (D6), so any
 	// relay-allowed run fetches /v1/ice. Presets that fetch keep fetching
