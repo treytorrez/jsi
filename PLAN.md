@@ -453,6 +453,34 @@ gathering`). `∥` = parallelizable with siblings after deps met. Every task's
 | S3 | QUIC transport over Yggdrasil | quic-go `Transport{Conn: yggCore}` (PacketConn seam verified); self-signed cert + key pinning; parallel streams per file; benchmark vs WebRTC path. |
 | S4 | PWA | Per §7.7. DoD: browser↔CLI transfer of a 1 GiB file, QR scan-to-receive on mobile Safari + Chrome. |
 
+### S4 QR scanning — PWA↔PWA (in progress)
+
+**Scope:** PWA↔PWA only. Encodes the paste blob (`jsi1:...`) as a single large
+static text-safe QR (no QP/1 binary frames — those are CLI-only). Two-scan
+flow: sender displays offer QR → receiver scans → receiver displays answer QR
+→ sender scans → connect.
+
+**Sizes (M4.1 spike):** paste blobs are 767–924 B — fits one QR at V20-L (858 B)
+or V23-M (~1,100 B). No animation needed.
+
+**Camera:** `BarcodeDetector` (Chrome/Edge/Android) with `jsQR` fallback
+(Safari/Firefox). `getUserMedia` for camera access.
+
+**Future interop note:** CLI↔PWA QR interop requires the PWA to decode QP/1
+binary frames (JSI1 magic) and handle animated multi-frame scanning. The CLI
+encodes binary frames; the PWA currently encodes text-safe paste blobs. A
+future task should port `JoinFrames` to TS and add multi-frame scanning
+support. Until then, CLI↔PWA uses paste or worker mode.
+
+**Tasks:**
+| ID | Task | Deps | Effort |
+|---|---|---|---|
+| S4.Q1 | Install jsqr dep + create `rtc/scanner.ts` (camera + decode) | — | Small |
+| S4.Q2 | Create `screens/qr-send.ts` (display offer QR + scan answer QR) | S4.Q1 | Medium |
+| S4.Q3 | Create `screens/qr-receive.ts` (scan offer QR + display answer QR) | S4.Q1 | Medium |
+| S4.Q4 | Wire QR mode into privacy→action→send/receive flow | S4.Q2, S4.Q3 | Small |
+| S4.Q5 | Test PWA↔PWA QR transfer end-to-end | S4.Q4 | Small |
+
 ---
 
 ## 9. Testing strategy
