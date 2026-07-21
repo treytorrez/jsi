@@ -11,16 +11,13 @@ wrong or incomplete, fix the spec file in the same commit and say so in the mess
 
 ## Status
 
-Spec v0.5. Landed: **M1 complete + deployed** (tags `m1`, `m3`) — worker SP/1 at
-https://jsi-signal.treytorrez.workers.dev (M1.9/D17: per-session SessionDO +
-20 s answer long-poll after KV eventual-consistency broke live polling; STUN-only
-— TURN deferred by owner, no card on file; enable via scripts/deploy-worker.sh);
-**M2 complete** (tag `m2`); **M3 complete** (CLI + strace-proven e2e);
-**M4 complete** (tag `m4` — measured 2-frame QR handshakes, internal/qr renderer,
-signal.QR, `--signal qr`; camera receive is PWA/S4 scope per D16);
-**M5 complete** (tag `m5` — Bubble Tea TUI with send/receive/settings/help,
-all three signaling modes, D15 policy + transparency, progress bars).
-Next: M6 (polish/release). Update this section as milestones land.
+Spec v0.5. **All milestones complete** (tags `m1`–`m6`, release `v0.1.0`):
+worker SP/1 deployed at https://jsi-signal.treytorrez.workers.dev (M1.9/D17:
+per-session SessionDO + 20 s answer long-poll; STUN-only — TURN deferred by
+owner, no card on file; enable via scripts/deploy-worker.sh); Go core (m2);
+CLI (m3 — strace-proven e2e); QR signaling (m4 — 2-frame animated handshakes);
+TUI (m5 — Bubble Tea); polish (m6 — MIT license, CI, goreleaser, README).
+Stretch goals S1–S4 remain. Update this section as work continues.
 
 ## Layout
 
